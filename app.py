@@ -122,13 +122,18 @@ def render_upload():
         st.divider()
         st.header("Settings")
         
-        col1, col2, col3 = st.columns([1, 1, 1])
+        show_empty = st.checkbox("Show empty", value=st.session_state.show_empty)
+        expand_all = st.checkbox("Expand all", value=st.session_state.expand_all)
+        
+        col1, col2 = st.columns([1, 1])
         with col1:
-            show_empty = st.checkbox("Show empty", value=st.session_state.show_empty)
+            st.button("A→Z", key="btn_sort", disabled=True)
         with col2:
-            expand_all = st.checkbox("Expand all", value=st.session_state.expand_all)
-        with col3:
-            st.button("A→Z", disabled=True)
+            if st.button("Remove empty", key="btn_remove_empty"):
+                blocks = st.session_state.namelist_blocks
+                new_blocks = {name: block for name, block in blocks.items() if block.entries}
+                st.session_state.namelist_blocks = new_blocks
+                st.rerun()
         
         if show_empty != st.session_state.show_empty:
             st.session_state.show_empty = show_empty
@@ -139,10 +144,15 @@ def render_upload():
         if show_empty != st.session_state.show_empty or expand_all != st.session_state.expand_all:
             st.rerun()
         
-        if show_empty != st.session_state.show_empty:
-            st.session_state.show_empty = show_empty
+            if show_empty != st.session_state.show_empty:
+                        st.session_state.show_empty = show_empty
+        
+        if expand_all != st.session_state.expand_all:
+            st.session_state.expand_all = expand_all
+        
+        if show_empty != st.session_state.show_empty or expand_all != st.session_state.expand_all:
             st.rerun()
-
+        
         if st.session_state.namelist_blocks:
             block_names = list(st.session_state.namelist_blocks.keys())
             empty_count = sum(1 for b in st.session_state.namelist_blocks.values() if not b.entries)
