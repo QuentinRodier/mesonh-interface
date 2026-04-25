@@ -99,19 +99,25 @@ def render_namelist_view():
 def render_upload():
     with st.sidebar:
         st.header("File")
-        uploaded_file = st.file_uploader("Upload namelist", type=['nam', 'nam_LFI'])
 
-        if uploaded_file:
-            content = uploaded_file.getvalue().decode('utf-8')
-            blocks = parser.parse_namelist(content)
-            if blocks:
-                st.session_state.namelist_blocks = blocks
-                st.session_state.current_file = uploaded_file.name
-                st.session_state.previous_state = None
-                save_previous_state()
-                st.success(f"Loaded: {uploaded_file.name}")
-            else:
-                st.error("Could not parse")
+        uploaded_file = st.file_uploader(
+            "Upload namelist",
+            type=['nam', 'nam_LFI']
+        )
+
+        if uploaded_file is not None:
+            if st.session_state.current_file != uploaded_file.name:
+                content = uploaded_file.getvalue().decode("utf-8")
+                blocks = parser.parse_namelist(content)
+
+                if blocks:
+                    st.session_state.namelist_blocks = blocks
+                    st.session_state.current_file = uploaded_file.name
+                    st.session_state.previous_state = None
+                    save_previous_state()
+                    st.success(f"Loaded: {uploaded_file.name}")
+                else:
+                    st.error("Could not parse")
 
         st.divider()
         st.header("Settings")
