@@ -28,9 +28,10 @@ def find_docs(block_name):
     for f in possible_files:
         if os.path.exists(f):
             with open(f, 'r', encoding='utf-8') as file:
-                file_temp = file.read()
-                file_temp2 = file_temp.replace(':ref:',':code:')
-                return file_temp2
+                content = file.read()
+                for old, new in {':ref:': ':code:', ':file:': ':code:'}.items():
+                    content = content.replace(old, new)
+                return content
     return None
 
 
@@ -47,16 +48,21 @@ def render_rst(rst_content, block_name=None):
         if isinstance(html, bytes):
             html = html.decode('utf-8')
         
-        html = """
+        height = st.session_state.get('doc_height', 400)
+        
+        html = f"""
+        <div style="height: {height}px; overflow-y: auto;">
         <style>
-        table { border-collapse: collapse; margin: 1em 0; }
-        table td, table th { border: 1px solid #555; padding: 6px 10px; }
-        table th { background: #444; color: #fff; font-weight: bold; }
-        code, pre { background: #f5f5f5; color: #333; padding: 2px 4px; border-radius: 3px; }
-        .warning { background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; }
+        table {{ border-collapse: collapse; margin: 1em 0; }}
+        table td, table th {{ border: 1px solid #555; padding: 6px 10px; }}
+        table th {{ background: #444; color: #fff; font-weight: bold; }}
+        code, pre {{ background: #f5f5f5; color: #333; padding: 2px 4px; }}
+        .warning {{ background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; }}
         </style>
-        """ + html
-        print(html)
+        {html}
+        </div>
+        """
+        
         return html
     except Exception as e:
         return f"<pre>Error parsing RST: {e}</pre>"
@@ -115,7 +121,11 @@ def render_namelist_view():
 
     st.divider()
 
-    col_editor, col_doc = st.columns([2, 1])
+    col_editor, col_doc, col_slider = st.columns([2, 1, 0.1])
+    
+    with col_slider:
+        doc_height = st.slider("", 800, 2000, key="doc_height_slider")
+        st.session_state.doc_height = doc_height
     
     with col_editor:
         for block_name in st.session_state.namelist_blocks:
@@ -152,8 +162,8 @@ def render_namelist_view():
     with col_doc:
         st.subheader("Documentation")
         
-        block_options = ["<Select a block>"] + list(st.session_state.namelist_blocks.keys())
-        selected = st.selectbox("Block", block_options, key="doc_select")
+        block_options = ["<Select a namelist group>"] + list(st.session_state.namelist_blocks.keys())
+        selected = st.selectbox("", block_options, key="doc_select")
         
         if selected and selected != "<Select a block>":
             doc_content = find_docs(selected)
@@ -167,9 +177,9 @@ def render_namelist_view():
 
 def render_upload():
     with st.sidebar:
-        st.header("File")
+        st.header("")
 
-        uploaded_file = st.file_uploader("Upload namelist", type=['nam', 'nam_LFI'])
+        uploaded_file = st.file_uploader("Upload namelist", type=['nam'])
 
         if uploaded_file is not None:
             if st.session_state.current_file != uploaded_file.name:
