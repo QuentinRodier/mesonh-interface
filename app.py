@@ -11,6 +11,57 @@ if 'show_empty' not in st.session_state:
     st.session_state.show_empty = False
 if 'expand_all' not in st.session_state:
     st.session_state.expand_all = False
+if 'selected_block' not in st.session_state:
+    st.session_state.selected_block = None
+
+
+DOC_DIR = "namelists"
+
+
+def find_docs(block_name):
+    import os
+    doc_dir = os.path.join(os.path.dirname(__file__), DOC_DIR)
+    possible_files = [
+        os.path.join(doc_dir, f"{block_name.lower()}.rst"),
+        os.path.join(doc_dir, f"{block_name.replace('_', '-').lower()}.rst"),
+    ]
+    for f in possible_files:
+        if os.path.exists(f):
+            with open(f, 'r', encoding='utf-8') as file:
+                file_temp = file.read()
+                file_temp2 = file_temp.replace(':ref:',':code:')
+                return file_temp2
+    return None
+
+
+def render_rst(rst_content, block_name=None):
+    if not rst_content:
+        return ""
+    
+    try:
+        from docutils.core import publish_doctree, publish_from_doctree
+        
+        doctree = publish_doctree(rst_content)
+        html = publish_from_doctree(doctree, writer_name='html')
+        
+        if isinstance(html, bytes):
+            html = html.decode('utf-8')
+        
+        html = """
+        <style>
+        table { border-collapse: collapse; margin: 1em 0; }
+        table td, table th { border: 1px solid #555; padding: 6px 10px; }
+        table th { background: #444; color: #fff; font-weight: bold; }
+        code, pre { background: #f5f5f5; color: #333; padding: 2px 4px; border-radius: 3px; }
+        .warning { background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; }
+        </style>
+        """ + html
+        print(html)
+        return html
+    except Exception as e:
+        return f"<pre>Error parsing RST: {e}</pre>"
+
+
 if 'previous_state' not in st.session_state:
     st.session_state.previous_state = None
 
@@ -64,46 +115,61 @@ def render_namelist_view():
 
     st.divider()
 
-    for block_name in st.session_state.namelist_blocks:
-        block = st.session_state.namelist_blocks[block_name]
-        
-        if not block.entries and not st.session_state.show_empty:
-            continue
-
-        with st.expander(f"&{block_name} ({len(block.entries)} params)", expanded=st.session_state.expand_all):
-            if not block.entries:
-                st.caption("Empty block")
+    col_editor, col_doc = st.columns([2, 1])
+    
+    with col_editor:
+        for block_name in st.session_state.namelist_blocks:
+            block = st.session_state.namelist_blocks[block_name]
+            
+            if not block.entries and not st.session_state.show_empty:
                 continue
-            
-            cols = st.columns([1, 2])
-            
-            for param_name, entry in block.entries.items():
-                col1, col2 = st.columns([1, 2])
-                with col1:
-                    st.markdown(f"**{param_name}**")
-                with col2:
-                    if isinstance(entry.value, bool):
-                        new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
-                        entry.value = new_val
-                    elif isinstance(entry.value, (int, float)):
-                        if isinstance(entry.value, int):
-                            new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
-                        else:
-                            new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format="%.4f", label_visibility="collapsed")
-                        entry.value = new_val
-                    elif isinstance(entry.value, str):
-                        new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
-                        entry.value = new_val
+
+            with st.expander(f"&{block_name} ({len(block.entries)} params)", expanded=st.session_state.expand_all):
+                if not block.entries:
+                    st.caption("Empty block")
+                    continue
+                
+                cols = st.columns([1, 2])
+                
+                for param_name, entry in block.entries.items():
+                    col1, col2 = st.columns([1, 2])
+                    with col1:
+                        st.markdown(f"**{param_name}**")
+                    with col2:
+                        if isinstance(entry.value, bool):
+                            new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                            entry.value = new_val
+                        elif isinstance(entry.value, (int, float)):
+                            if isinstance(entry.value, int):
+                                new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
+                            else:
+                                new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format="%.4f", label_visibility="collapsed")
+                            entry.value = new_val
+                        elif isinstance(entry.value, str):
+                            new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                            entry.value = new_val
+
+    with col_doc:
+        st.subheader("Documentation")
+        
+        block_options = ["<Select a block>"] + list(st.session_state.namelist_blocks.keys())
+        selected = st.selectbox("Block", block_options, key="doc_select")
+        
+        if selected and selected != "<Select a block>":
+            doc_content = find_docs(selected)
+            if doc_content:
+                html = render_rst(doc_content, block_name=selected)
+                if html:
+                    st.html(html)
+                else:
+                    st.warning(f"No documentation for {selected}")
 
 
 def render_upload():
     with st.sidebar:
         st.header("File")
 
-        uploaded_file = st.file_uploader(
-            "Upload namelist",
-            type=['nam', 'nam_LFI']
-        )
+        uploaded_file = st.file_uploader("Upload namelist", type=['nam', 'nam_LFI'])
 
         if uploaded_file is not None:
             if st.session_state.current_file != uploaded_file.name:
