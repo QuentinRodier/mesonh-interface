@@ -31,7 +31,8 @@ def find_docs(block_name):
         if os.path.exists(f):
             with open(f, 'r', encoding='utf-8') as file:
                 content = file.read()
-                for old, new in {':ref:': ':code:', ':file:': ':code:'}.items():
+                for old, new in {':ref:': ':code:', ':file:': ':code:',
+                                 ':cite:t:': ':code:'}.items():
                     content = content.replace(old, new)
                 return content
     return None
@@ -139,9 +140,10 @@ def render_namelist_view():
                     continue
                 
                 entries = list(block.entries.items())
-                for i in range(0, len(entries), 3):
-                    pair = entries[i:i+3]
-                    cols = st.columns([1, 1, 1, 1, 1, 1])
+                pair_count = st.session_state.get('pair_count', 3)
+                for i in range(0, len(entries), pair_count):
+                    pair = entries[i:i+pair_count]
+                    cols = st.columns([1, 1] * pair_count)
                     for j, (param_name, entry) in enumerate(pair):
                         idx = j * 2
                         with cols[idx]:
@@ -154,7 +156,8 @@ def render_namelist_view():
                                 if isinstance(entry.value, int):
                                     new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
                                 else:
-                                    new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format="%.4f", label_visibility="collapsed")
+                                    decimals = getattr(entry, 'decimals', 4)
+                                    new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
                                 entry.value = new_val
                             elif isinstance(entry.value, str):
                                 new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
@@ -213,6 +216,9 @@ def render_upload():
                 st.rerun()
         
         editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
+        pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
+        if pair_count != st.session_state.get('pair_count', 3):
+            st.session_state.pair_count = pair_count
         doc_height = st.slider("Doc height", 400, 2000, 800, key="doc_height_slider")
         if doc_height != st.session_state.get('doc_height', 400):
             st.session_state.doc_height = doc_height
@@ -236,6 +242,8 @@ def render_upload():
 
 
 def main():
+    if 'pair_count' not in st.session_state:
+        st.session_state.pair_count = 3
     st.title("Meso-NH Namelist Editor")
     render_upload()
     render_namelist_view()

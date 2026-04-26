@@ -12,6 +12,7 @@ class NamelistEntry:
     name: str
     value: Any
     raw_line: str
+    decimals: int = 4
 
 
 @dataclass
@@ -68,7 +69,7 @@ def write_namelist(blocks: Dict[str, NamelistBlock]) -> str:
         lines.append(f"&{block.name}")
 
         for entry in block.entries.values():
-            value = _format_value(entry.value)
+            value = _format_value(entry.value, entry.decimals)
             lines.append(f"  {entry.name}={value},")
 
         lines.append(" /")
@@ -168,11 +169,13 @@ def _parse_assignments(text: str) -> Dict[str, NamelistEntry]:
         raw_value = raw_value.rstrip(",").strip()
 
         value = _parse_value(raw_value)
+        decimals = _count_decimals(raw_value)
 
         entries[name] = NamelistEntry(
             name=name,
             value=value,
-            raw_line=f"{name}={raw_value}"
+            raw_line=f"{name}={raw_value}",
+            decimals=decimals
         )
 
     return entries
@@ -181,6 +184,16 @@ def _parse_assignments(text: str) -> Dict[str, NamelistEntry]:
 # ==========================================================
 # Value parser
 # ==========================================================
+
+def _count_decimals(s):
+    s_clean = s.replace("D", "E").replace("d", "e")
+    if "e" in s_clean.lower():
+        mantissa = s_clean.lower().split("e")[0]
+    else:
+        mantissa = s_clean
+    if "." in mantissa:
+        return len(mantissa.split(".")[1])
+    return 0
 
 def _parse_value(s: str):
     s = s.strip()
@@ -221,7 +234,7 @@ def _parse_value(s: str):
 # Formatting
 # ==========================================================
 
-def _format_value(v):
+def _format_value(v, decimals=4):
     if isinstance(v, bool):
         return ".TRUE." if v else ".FALSE."
 
@@ -229,6 +242,9 @@ def _format_value(v):
         if "*" in v:
             return v
         return f"'{v}'"
+
+    if isinstance(v, float):
+        return f"{v:.{decimals}f}"
 
     return str(v)
 
