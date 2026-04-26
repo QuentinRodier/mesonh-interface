@@ -141,11 +141,11 @@ def render_namelist_view():
                 entries = list(block.entries.items())
                 for i in range(0, len(entries), 2):
                     pair = entries[i:i+2]
-                    cols = st.columns([1, 1, 1, 1])
+                    cols = st.columns([1, 1, 0.5, 1, 1])
                     for j, (param_name, entry) in enumerate(pair):
-                        with cols[j*2]:
+                        with cols[j*2 if j == 0 else j*2 + 1]:
                             st.markdown(f"**{param_name}**")
-                        with cols[j*2+1]:
+                        with cols[j*2 + 1 if j == 0 else j*2 + 2]:
                             if isinstance(entry.value, bool):
                                 new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
                                 entry.value = new_val
