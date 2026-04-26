@@ -10,9 +10,11 @@ if 'current_file' not in st.session_state:
 if 'show_empty' not in st.session_state:
     st.session_state.show_empty = False
 if 'expand_all' not in st.session_state:
-    st.session_state.expand_all = False
+    st.session_state.expand_all = True
 if 'selected_block' not in st.session_state:
     st.session_state.selected_block = None
+if 'doc_height' not in st.session_state:
+    st.session_state.doc_height = 400
 
 
 DOC_DIR = "namelists"
@@ -121,11 +123,8 @@ def render_namelist_view():
 
     st.divider()
 
-    col_editor, col_doc, col_slider = st.columns([2, 1, 0.1])
-    
-    with col_slider:
-        doc_height = st.slider("", 800, 2000, key="doc_height_slider")
-        st.session_state.doc_height = doc_height
+    editor_width = st.session_state.get('editor_width', 2)
+    col_editor, col_doc = st.columns([editor_width, 1])
     
     with col_editor:
         for block_name in st.session_state.namelist_blocks:
@@ -134,30 +133,31 @@ def render_namelist_view():
             if not block.entries and not st.session_state.show_empty:
                 continue
 
-            with st.expander(f"&{block_name} ({len(block.entries)} params)", expanded=st.session_state.expand_all):
+            with st.expander(f"&{block_name} ({len(block.entries)})", expanded=st.session_state.expand_all):
                 if not block.entries:
                     st.caption("Empty block")
                     continue
                 
-                cols = st.columns([1, 2])
-                
-                for param_name, entry in block.entries.items():
-                    col1, col2 = st.columns([1, 2])
-                    with col1:
-                        st.markdown(f"**{param_name}**")
-                    with col2:
-                        if isinstance(entry.value, bool):
-                            new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
-                            entry.value = new_val
-                        elif isinstance(entry.value, (int, float)):
-                            if isinstance(entry.value, int):
-                                new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
-                            else:
-                                new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format="%.4f", label_visibility="collapsed")
-                            entry.value = new_val
-                        elif isinstance(entry.value, str):
-                            new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
-                            entry.value = new_val
+                entries = list(block.entries.items())
+                for i in range(0, len(entries), 2):
+                    pair = entries[i:i+2]
+                    cols = st.columns([1, 1, 1, 1])
+                    for j, (param_name, entry) in enumerate(pair):
+                        with cols[j*2]:
+                            st.markdown(f"**{param_name}**")
+                        with cols[j*2+1]:
+                            if isinstance(entry.value, bool):
+                                new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                entry.value = new_val
+                            elif isinstance(entry.value, (int, float)):
+                                if isinstance(entry.value, int):
+                                    new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
+                                else:
+                                    new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format="%.4f", label_visibility="collapsed")
+                                entry.value = new_val
+                            elif isinstance(entry.value, str):
+                                new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                entry.value = new_val
 
     with col_doc:
         st.subheader("Documentation")
@@ -211,17 +211,14 @@ def render_upload():
                 st.session_state.namelist_blocks = new_blocks
                 st.rerun()
         
-        if show_empty != st.session_state.show_empty:
-            st.session_state.show_empty = show_empty
-        
-        if expand_all != st.session_state.expand_all:
-            st.session_state.expand_all = expand_all
-        
-        if show_empty != st.session_state.show_empty or expand_all != st.session_state.expand_all:
+        editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
+        doc_height = st.slider("Doc height", 400, 2000, 800, key="doc_height_slider")
+        if doc_height != st.session_state.get('doc_height', 400):
+            st.session_state.doc_height = doc_height
             st.rerun()
         
-            if show_empty != st.session_state.show_empty:
-                        st.session_state.show_empty = show_empty
+        if show_empty != st.session_state.show_empty:
+            st.session_state.show_empty = show_empty
         
         if expand_all != st.session_state.expand_all:
             st.session_state.expand_all = expand_all
