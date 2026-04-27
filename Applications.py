@@ -23,4 +23,15 @@ with col2:
 
 st.divider()
 
+col_main, _ = st.columns([1, 1])
+
+with col_main:
+    st.subheader("📚 Catalogue Explorer")
+    st.write("Browse namelists in examples directory")
+    
+    if st.button("🚀 Launch Catalogue Explorer", use_container_width=True):
+        st.switch_page("pages/Catalogue_Explorer.py")
+
+st.divider()
+
 st.info("Select a tool from the menu on the left")
