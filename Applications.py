@@ -9,8 +9,18 @@ col1, col2 = st.columns([1, 1])
 
 with col1:
     st.subheader("📝 Namelist Editor")
-    st.write("Edit one single namelist")
+    st.write("Edit one single namelist file")
+    
+    if st.button("🚀 Launch Editor", use_container_width=True):
+        st.switch_page("pages/Namelist_Editor.py")
 
 with col2:
-    if st.button("Start Editor", use_container_width=True):
-        st.switch_page("pages/Namelist_Editor.py")
+    st.subheader("📂 Workspace")
+    st.write("Edit multiple namelist files in a directory")
+    
+    if st.button("🚀 Launch Workspace", use_container_width=True):
+        st.switch_page("pages/Workspace.py")
+
+st.divider()
+
+st.info("Select a tool from the menu on the left")

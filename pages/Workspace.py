@@ -15,6 +15,14 @@ if 'workspace_modified' not in st.session_state:
     st.session_state.workspace_modified = set()
 if 'selected_file' not in st.session_state:
     st.session_state.selected_file = None
+if 'selected_file_key' not in st.session_state:
+    st.session_state.selected_file_key = None
+if 'workspace_tree_state' not in st.session_state:
+    st.session_state.workspace_tree_state = {}
+if 'file_options_dict' not in st.session_state:
+    st.session_state.file_options_dict = {}
+if 'file_select_main_index' not in st.session_state:
+    st.session_state.file_select_main_index = 0
 if 'show_empty' not in st.session_state:
     st.session_state.show_empty = False
 if 'expand_all' not in st.session_state:
@@ -187,6 +195,72 @@ def render_workspace():
                 st.error("Invalid directory")
         
         if st.session_state.workspace_files:
+            def build_tree():
+                tree = {}
+                for file_name, file_list in st.session_state.workspace_files.items():
+                    for f in file_list:
+                        parts = f['relative'].split(os.sep)
+                        current = tree
+                        for part in parts[:-1]:
+                            if part not in current:
+                                current[part] = {}
+                            current = current[part]
+                        if parts[-1] not in current:
+                            current[parts[-1]] = f['relative']
+                return tree
+
+            tree = build_tree()
+            
+            def render_tree(subtree, prefix="", indent=0):
+                for name in sorted(subtree.keys()):
+                    path = f"{prefix}/{name}" if prefix else name
+                    content = subtree[name]
+                    spacer = "&nbsp;&nbsp;&nbsp;&nbsp;" * indent
+                    
+                    if isinstance(content, dict):
+                        if path not in st.session_state.workspace_tree_state:
+                            st.session_state.workspace_tree_state[path] = False
+                        is_expanded = st.checkbox(f"{spacer}📁 {name}", value=st.session_state.workspace_tree_state[path], key=f"tree_{path}")
+                        st.session_state.workspace_tree_state[path] = is_expanded
+                        if is_expanded:
+                            render_tree(content, path, indent + 1)
+                    else:
+                        if st.button(f"{spacer}📄 {name}", key=f"file_{name}_{content.replace('/', '_').replace('\\', '_')}"):
+                            file_info = next((fi for fi in st.session_state.workspace_files.get(name, []) if fi['relative'] == content), None)
+                            if file_info:
+                                st.session_state.selected_file = file_info
+                                
+                                for file_name, file_list in st.session_state.workspace_files.items():
+                                    for fi in file_list:
+                                        if fi['relative'] == content:
+                                            if len(file_list) == 1:
+                                                file_key = file_name
+                                            else:
+                                                file_key = f"{file_name} ({content})"
+                                            break
+                                    else:
+                                        continue
+                                    break
+                                
+                                st.session_state.selected_file_key = file_key
+                                st.session_state.file_select_main = file_key
+                                
+                                file_opts = st.session_state.get('file_options', [])
+                                file_opts_dict = st.session_state.get('file_options_dict', {})
+                                
+                                if file_key in file_opts:
+                                    st.session_state.file_select_main_index = file_opts.index(file_key)
+                                else:
+                                    for i, opt in enumerate(file_opts):
+                                        if file_opts_dict.get(opt) == content:
+                                            st.session_state.file_select_main_index = i
+                                            break
+                                
+                                st.rerun()
+            
+            with st.expander("📁 Tree View"):
+                render_tree(tree)
+            
             st.divider()
             st.header("⚙️ Settings")
             
@@ -220,26 +294,61 @@ def render_workspace():
     
     st.subheader("📄 Files")
     
+    file_options_dict = {}
     file_options = []
     for file_name, file_list in st.session_state.workspace_files.items():
         if len(file_list) == 1:
-            file_options.append(f"{file_name}")
+            key = file_name
+            file_options.append(file_name)
+            file_options_dict[file_name] = file_name
         else:
-            for i, f in enumerate(file_list):
-                file_options.append(f"{file_name} ({f['relative']})")
+            for f in file_list:
+                key = f"{file_name} ({f['relative']})"
+                file_options.append(key)
+                file_options_dict[key] = f['relative']
     
-    selected = st.selectbox("Select file to edit", file_options, key="file_select_main")
+    st.session_state.file_options = file_options
+    st.session_state.file_options_dict = file_options_dict
     
-    if selected:
-        if "(" in selected and ")" in selected:
-            file_name = selected.split(" (")[0]
-            rel_path = selected.split(" (")[1].rstrip(")")
-            file_info = next(f for f in st.session_state.workspace_files[file_name] if f['relative'] == rel_path)
-        else:
-            file_name = selected
-            file_info = st.session_state.workspace_files[file_name][0]
+    current_index = 0
+    key = st.session_state.get('selected_file_key', '')
+    if key and key in file_options:
+        try:
+            current_index = file_options.index(key)
+        except ValueError:
+            current_index = 0
+    
+    selected_index = st.session_state.get('file_select_main_index', current_index)
+    
+    if selected_index >= len(file_options):
+        selected_index = 0
+    
+    if "file_select_main" not in st.session_state:
+        st.session_state.file_select_main = file_options[selected_index]
+
+    selected = st.selectbox(
+        "Select file to edit",
+        file_options,
+        key="file_select_main"
+    )    
+    current_selected_index = file_options.index(selected) if selected in file_options else 0
+    if st.session_state.get('file_select_main_index') != current_selected_index:
+        st.session_state.file_select_main_index = current_selected_index
+        st.session_state.selected_file_key = selected
         
-        st.session_state.selected_file = file_info
+        rel_path = file_options_dict.get(selected, selected)
+        
+        file_info = None
+        for file_list in st.session_state.workspace_files.values():
+            for fi in file_list:
+                if fi['relative'] == rel_path:
+                    file_info = fi
+                    break
+            if file_info:
+                break
+        
+        if file_info:
+            st.session_state.selected_file = file_info
     
     st.divider()
     
@@ -248,20 +357,12 @@ def render_workspace():
         relative_path = file_info['relative']
         blocks = file_info['blocks']
         
-        with st.expander(f"📄 {relative_path} ({len(blocks)} blocks)", expanded=True):
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.button("💾 Save", key=f"save_{relative_path}"):
-                    save_file(relative_path, blocks)
-                    st.success("Saved!")
-            with col2:
-                if relative_path in st.session_state.workspace_modified:
-                    st.warning("Modified")
-                else:
-                    st.success("Saved")
+        if st.button("💾 Save", key=f"save_{relative_path}"):
+            save_file(relative_path, blocks)
+            st.success("Saved!")
         
         render_editor(blocks, relative_path)
-    else:
+    #else:
         st.info("Select a file from the dropdown above to edit")
 
 
