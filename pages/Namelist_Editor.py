@@ -1,7 +1,11 @@
 import streamlit as st
-import parser
+import sys
+import os
 
-st.set_page_config(page_title="Meso-NH Namelist Editor", layout="wide")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from modules import parser
+
+st.set_page_config(page_title="Namelist Editor", layout="wide")
 
 if 'namelist_blocks' not in st.session_state:
     st.session_state.namelist_blocks = {}
@@ -17,15 +21,14 @@ if 'doc_height' not in st.session_state:
     st.session_state.doc_height = 400
 
 
-DOC_DIR = "namelists"
+DOC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "namelists")
 
 
 def find_docs(block_name):
     import os
-    doc_dir = os.path.join(os.path.dirname(__file__), DOC_DIR)
     possible_files = [
-        os.path.join(doc_dir, f"{block_name.lower()}.rst"),
-        os.path.join(doc_dir, f"{block_name.replace('_', '-').lower()}.rst"),
+        os.path.join(DOC_DIR, f"{block_name.lower()}.rst"),
+        os.path.join(DOC_DIR, f"{block_name.replace('_', '-').lower()}.rst"),
     ]
     for f in possible_files:
         if os.path.exists(f):
@@ -81,7 +84,7 @@ def save_previous_state():
     for name, block in blocks.items():
         entries = {}
         for param_name, entry in block.entries.items():
-            entries[param_name] = {'name': entry.name, 'value': entry.value, 'raw_line': entry.raw_line}
+            entries[param_name] = {'name': entry.name, 'value': entry.value, 'raw_line': entry.raw_line, 'decimals': entry.decimals}
         previous[name] = {'entries': entries, 'raw_lines': list(block.raw_lines)}
     st.session_state.previous_state = previous
 
@@ -96,7 +99,8 @@ def undo():
                 block.entries[param_name] = parser.NamelistEntry(
                     name=entry_data['name'],
                     value=entry_data['value'],
-                    raw_line=entry_data['raw_line']
+                    raw_line=entry_data['raw_line'],
+                    decimals=entry_data.get('decimals', 4)
                 )
             block.raw_lines = data['raw_lines']
             blocks[name] = block
@@ -109,18 +113,8 @@ def render_namelist_view():
     if not st.session_state.namelist_blocks:
         return
 
-    st.subheader("Editor")
-
-    col_dl, col_rst = st.columns([1, 1])
-    with col_dl:
-        file_content = parser.write_namelist(st.session_state.namelist_blocks)
-        st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain")
-    with col_rst:
-        if st.button("Reset"):
-            st.session_state.namelist_blocks = {}
-            st.session_state.current_file = None
-            st.session_state.previous_state = None
-            st.rerun()
+    file_content = parser.write_namelist(st.session_state.namelist_blocks)
+    st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain")
 
     st.divider()
 
@@ -164,7 +158,7 @@ def render_namelist_view():
                                 entry.value = new_val
 
     with col_doc:
-        st.subheader("Documentation")
+        st.subheader("📋 Documentation")
         
         block_options = ["<Select a namelist group>"] + list(st.session_state.namelist_blocks.keys())
         selected = st.selectbox("", block_options, key="doc_select")
@@ -200,7 +194,7 @@ def render_upload():
                     st.error("Could not parse")
 
         st.divider()
-        st.header("Settings")
+        st.header("⚙️ Settings")
         
         show_empty = st.checkbox("Show empty", value=st.session_state.show_empty)
         expand_all = st.checkbox("Expand all", value=st.session_state.expand_all)
@@ -213,7 +207,6 @@ def render_upload():
                 blocks = st.session_state.namelist_blocks
                 new_blocks = {name: block for name, block in blocks.items() if block.entries}
                 st.session_state.namelist_blocks = new_blocks
-                st.rerun()
         
         editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
         pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
@@ -244,7 +237,7 @@ def render_upload():
 def main():
     if 'pair_count' not in st.session_state:
         st.session_state.pair_count = 3
-    st.title("Meso-NH Namelist Editor")
+    st.title("📝 Single Namelist Editor")
     render_upload()
     render_namelist_view()
 
