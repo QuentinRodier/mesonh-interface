@@ -106,8 +106,40 @@ with st.sidebar:
         'ztop': ZTOP, 'sgrd': SGRD, 'stop': STOP
     }
 
+    manual_mode = st.checkbox('Manual mode (YZGRID_TYPE=\'MANUAL\')', value=False, key='manual_mode')
+    
+    manual_heights = []
+    if manual_mode:
+        if 'manual_levels' in st.session_state and st.session_state.manual_levels:
+            default_text = '\n'.join(str(h) for h in st.session_state.manual_levels)
+        else:
+            default_text = ''
+        
+        manual_text = st.text_area('Enter heights (one per line, in meters)', value=default_text, height=150, key='manual_text')
+
+        col_load, col_clear = st.columns([1, 1])
+        with col_load:
+            if st.button('Load Values'):
+                if manual_text.strip():
+                    try:
+                        manual_heights = [float(line.strip()) for line in manual_text.strip().split('\n') if line.strip()]
+                        if manual_heights:
+                            st.session_state.manual_levels = manual_heights
+                            st.success(f'Loaded {len(manual_heights)} levels!')
+                        else:
+                            st.warning('No valid heights entered')
+                    except ValueError as e:
+                        st.error(f'Invalid input: {e}')
+                else:
+                    st.warning('Enter at least one height')
+        with col_clear:
+            if st.button('Clear'):
+                if 'manual_levels' in st.session_state:
+                    del st.session_state.manual_levels
+                st.rerun()
+
     st.divider()
-    st.header('Options')
+    st.header('Settings')
     
     compare_mode = st.checkbox('Compare mode', value=False, key='compare_mode')
     
@@ -123,12 +155,17 @@ with st.sidebar:
 
 current_params = {
     'kmax': KMAX, 'zmax': ZMAX, 'zgrd': ZGRD, 
-    'ztop': ZTOP, 'sgrd': SGRD, 'stop': STOP
-}
+'ztop': ZTOP, 'sgrd': SGRD, 'stop': STOP
+    }
 
-levels = compute_levels(KMAX, ZMAX, ZGRD, ZTOP, SGRD, STOP)
-mesh = [levels[i] - levels[i-1] if i > 0 else 0 for i in range(len(levels))]
-idx = list(range(1, len(levels)+1))
+if manual_mode and manual_heights:
+    levels = manual_heights
+    mesh = [levels[i] - levels[i-1] if i > 0 else 0 for i in range(len(levels))]
+    idx = list(range(1, len(levels)+1))
+else:
+    levels = compute_levels(KMAX, ZMAX, ZGRD, ZTOP, SGRD, STOP)
+    mesh = [levels[i] - levels[i-1] if i > 0 else 0 for i in range(len(levels))]
+    idx = list(range(1, len(levels)+1))
 
 col1, col2 = st.columns([2, 1])
 
@@ -243,7 +280,7 @@ st.divider()
 st.text(f"Number of levels in the boundary-layer:")
 col_alt1, col_res1 = st.columns([1, 1])
 with col_alt1:
-    alt_below = st.number_input('Height below (m)', value=2000, min_value=0, max_value=30000, key='alt_below')
+    alt_below = st.number_input('Height below (m)', value=2000, min_value=0, max_value=30000, key='alt_below', step=100)
 with col_res1:
     count_below = sum(1 for h in levels if h <= alt_below)
     st.text(f"Number of vertical levels below: {count_below}")
@@ -251,7 +288,7 @@ with col_res1:
 st.text(f"Number of levels for the upper vertical relaxation layer (5 to 7 levels recommended):")
 col_alt2, col_res2 = st.columns([1, 1])
 with col_alt2:
-    alt_above = st.number_input('Height above (m) - correspond to XALZBOT', value=10000, min_value=0, max_value=30000, key='alt_above')
+    alt_above = st.number_input('Height above (m) - correspond to XALZBOT', value=10000, min_value=0, max_value=30000, key='alt_above', step=100)
 with col_res2:
     count_above = sum(1 for h in levels if h > alt_above)
     st.text(f"Number of vertical levels above: {count_above}")

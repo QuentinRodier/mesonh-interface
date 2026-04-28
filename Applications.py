@@ -11,26 +11,33 @@ with col1:
     st.subheader("📝 Namelist Editor")
     st.write("Edit one single namelist file")
     
-    if st.button("🚀 Launch Editor", use_container_width=True):
+    if st.button("Launch Editor", use_container_width=True):
         st.switch_page("pages/Namelist_Editor.py")
 
 with col2:
     st.subheader("📂 Workspace")
     st.write("Edit multiple namelist files in a directory")
     
-    if st.button("🚀 Launch Workspace", use_container_width=True):
+    if st.button("Launch Workspace", use_container_width=True):
         st.switch_page("pages/Workspace.py")
 
 st.divider()
 
-col_main, _ = st.columns([1, 1])
+col3, col4 = st.columns([1, 1])
 
-with col_main:
+with col3:
     st.subheader("📚 Catalogue Explorer")
     st.write("Browse namelists in examples directory")
     
-    if st.button("🚀 Launch Catalogue Explorer", use_container_width=True):
+    if st.button("Launch Catalogue Explorer", use_container_width=True):
         st.switch_page("pages/Catalogue_Explorer.py")
+
+with col4:
+    st.subheader("📈 Vertical Levels")
+    st.write("Configure and play with NAM_VER_GRID parameters")
+    
+    if st.button("Launch Vertical Levels", use_container_width=True):
+        st.switch_page("pages/Vertical_Levels.py")
 
 st.divider()
 
