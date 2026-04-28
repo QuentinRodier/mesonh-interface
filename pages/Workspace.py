@@ -235,7 +235,8 @@ def render_workspace():
             
             with st.expander("📁 Tree View"):
                 render_tree(tree)
-            
+            st.write(f"**{len(st.session_state.workspace_files)}** files loaded")
+
             st.divider()
             st.header("⚙️ Settings")
             
@@ -247,6 +248,7 @@ def render_workspace():
                 st.session_state.show_delete_keys = show_delete_keys
                 st.rerun()
             
+            st.divider()
             editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
             pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
             doc_height = st.slider("Doc height", 400, 2000, 800, key="doc_height_slider")
@@ -259,10 +261,7 @@ def render_workspace():
             
             if pair_count != st.session_state.get('pair_count', 3):
                 st.session_state.pair_count = pair_count
-            
-            st.divider()
-            st.write(f"**{len(st.session_state.workspace_files)}** files loaded")
-            
+                       
             if st.session_state.workspace_modified:
                 st.warning(f"**{len(st.session_state.workspace_modified)}** modified")
     
