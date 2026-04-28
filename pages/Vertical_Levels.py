@@ -239,4 +239,23 @@ else:
     st.subheader('Levels Table')
     st.dataframe(df, use_container_width=True)
 
+st.divider()
+st.text(f"Number of levels in the boundary-layer:")
+col_alt1, col_res1 = st.columns([1, 1])
+with col_alt1:
+    alt_below = st.number_input('Height below (m)', value=2000, min_value=0, max_value=30000, key='alt_below')
+with col_res1:
+    count_below = sum(1 for h in levels if h <= alt_below)
+    st.text(f"Number of vertical levels below: {count_below}")
+
+st.text(f"Number of levels for the upper vertical relaxation layer (5 to 7 levels recommended):")
+col_alt2, col_res2 = st.columns([1, 1])
+with col_alt2:
+    alt_above = st.number_input('Height above (m) - correspond to XALZBOT', value=10000, min_value=0, max_value=30000, key='alt_above')
+with col_res2:
+    count_above = sum(1 for h in levels if h > alt_above)
+    st.text(f"Number of vertical levels above: {count_above}")
+
+st.divider()
+
 st.html(render_rst(find_docs('NAM_VER_GRID'), block_name='NAM_VER_GRID'))
