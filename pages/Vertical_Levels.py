@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import sys
 import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from modules import docs
 
 st.set_page_config(page_title='Vertical Levels', layout='wide')
 
@@ -23,56 +27,6 @@ if 'reference_params' not in st.session_state:
 
 st.title('📈 Vertical Levels')
 st.caption('Configure and play with NAM_VER_GRID parameters')
-
-DOC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "namelists")
-
-def find_docs(block_name):
-    import os
-    possible_files = [
-        os.path.join(DOC_DIR, f"{block_name.lower()}.rst"),
-        os.path.join(DOC_DIR, f"{block_name.replace('_', '-').lower()}.rst"),
-    ]
-    for f in possible_files:
-        if os.path.exists(f):
-            with open(f, 'r', encoding='utf-8') as file:
-                content = file.read()
-                for old, new in {':ref:': ':code:', ':file:': ':code:',
-                                 ':cite:t:': ':code:'}.items():
-                    content = content.replace(old, new)
-                return content
-    return None
-
-def render_rst(rst_content, block_name=None):
-    if not rst_content:
-        return ""
-    
-    try:
-        from docutils.core import publish_doctree, publish_from_doctree
-        
-        doctree = publish_doctree(rst_content)
-        html = publish_from_doctree(doctree, writer_name='html')
-        
-        if isinstance(html, bytes):
-            html = html.decode('utf-8')
-        
-        height = st.session_state.get('doc_height', 400)
-        
-        html = f"""
-        <div style="height: {height}px; overflow-y: auto;">
-        <style>
-        table {{ border-collapse: collapse; margin: 1em 0; }}
-        table td, table th {{ border: 1px solid #555; padding: 6px 10px; }}
-        table th {{ background: #444; color: #fff; font-weight: bold; }}
-        code, pre {{ background: #f5f5f5; color: #333; padding: 2px 4px; }}
-        .warning {{ background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; }}
-        </style>
-        {html}
-        </div>
-        """
-        
-        return html
-    except Exception as e:
-        return f"<pre>Error parsing RST: {e}</pre>"
 
 def compute_levels(kmax, zmax, zgrd, ztop, sgrd, stop):
     rz = [0.0] * (kmax + 1)
@@ -295,4 +249,4 @@ with col_res2:
 
 st.divider()
 
-st.html(render_rst(find_docs('NAM_VER_GRID'), block_name='NAM_VER_GRID'))
+st.html(docs.render_rst(docs.find_docs('NAM_VER_GRID'), block_name='NAM_VER_GRID'))

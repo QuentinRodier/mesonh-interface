@@ -38,7 +38,3 @@ with col4:
     
     if st.button("Launch Vertical Levels", use_container_width=True):
         st.switch_page("pages/Vertical_Levels.py")
-
-st.divider()
-
-st.info("Select a tool from the menu on the left")
