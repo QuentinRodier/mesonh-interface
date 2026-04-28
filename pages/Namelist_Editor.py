@@ -74,34 +74,40 @@ def render_namelist_view():
             if not block.entries and not st.session_state.show_empty:
                 continue
 
-            with st.expander(f"&{block_name} ({len(block.entries)})", expanded=st.session_state.expand_all):
-                if not block.entries:
-                    st.caption("Empty block")
-                    continue
-                
-                entries = list(block.entries.items())
-                pair_count = st.session_state.get('pair_count', 3)
-                for i in range(0, len(entries), pair_count):
-                    pair = entries[i:i+pair_count]
-                    cols = st.columns([1, 1] * pair_count)
-                    for j, (param_name, entry) in enumerate(pair):
-                        idx = j * 2
-                        with cols[idx]:
-                            st.markdown(f"<div style='padding-top:8px'><b>{param_name}</b></div>", unsafe_allow_html=True)
-                        with cols[idx + 1]:
-                            if isinstance(entry.value, bool):
-                                new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
-                                entry.value = new_val
-                            elif isinstance(entry.value, (int, float)):
-                                if isinstance(entry.value, int):
-                                    new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
-                                else:
-                                    decimals = getattr(entry, 'decimals', 4)
-                                    new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
-                                entry.value = new_val
-                            elif isinstance(entry.value, str):
-                                new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
-                                entry.value = new_val
+            col_block, col_delete = st.columns([10, 1])
+            with col_block:
+                with st.expander(f"&{block_name} ({len(block.entries)})", expanded=st.session_state.expand_all):
+                    if not block.entries:
+                        st.caption("Empty block")
+                        continue
+                    
+                    entries = list(block.entries.items())
+                    pair_count = st.session_state.get('pair_count', 3)
+                    for i in range(0, len(entries), pair_count):
+                        pair = entries[i:i+pair_count]
+                        cols = st.columns([1, 1] * pair_count)
+                        for j, (param_name, entry) in enumerate(pair):
+                            idx = j * 2
+                            with cols[idx]:
+                                st.markdown(f"<div style='padding-top:8px'><b>{param_name}</b></div>", unsafe_allow_html=True)
+                            with cols[idx + 1]:
+                                if isinstance(entry.value, bool):
+                                    new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                    entry.value = new_val
+                                elif isinstance(entry.value, (int, float)):
+                                    if isinstance(entry.value, int):
+                                        new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
+                                    else:
+                                        decimals = getattr(entry, 'decimals', 4)
+                                        new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
+                                    entry.value = new_val
+                                elif isinstance(entry.value, str):
+                                    new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                    entry.value = new_val
+            with col_delete:
+                if st.button("🗑️", key=f"delete_{block_name}"):
+                    del st.session_state.namelist_blocks[block_name]
+                    st.rerun()
 
     with col_doc:
         st.subheader("📋 Documentation")
