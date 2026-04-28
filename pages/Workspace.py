@@ -27,6 +27,8 @@ if 'show_empty' not in st.session_state:
     st.session_state.show_empty = False
 if 'expand_all' not in st.session_state:
     st.session_state.expand_all = True
+if 'show_delete_keys' not in st.session_state:
+    st.session_state.show_delete_keys = False
 
 
 DOC_DIR = docs.DOC_DIR
@@ -93,14 +95,29 @@ def render_editor(blocks, relative_path):
                     
                     entries = list(block.entries.items())
                     pair_count = st.session_state.get('pair_count', 3)
+                    delete_mode = st.session_state.get('show_delete_keys', False)
                     for i in range(0, len(entries), pair_count):
                         pair = entries[i:i+pair_count]
-                        cols = st.columns([1, 1] * pair_count)
+                        if delete_mode:
+                            cols = st.columns([1, 1, 1] * pair_count)
+                        else:
+                            cols = st.columns([1, 1] * pair_count)
                         for j, (param_name, entry) in enumerate(pair):
-                            idx = j * 2
-                            with cols[idx]:
+                            base_idx = j * (3 if delete_mode else 2)
+                            if delete_mode:
+                                with cols[base_idx]:
+                                    if st.button("❌", key=f"del_{relative_path}_{block_name}_{param_name}"):
+                                        del block.entries[param_name]
+                                        save_file(relative_path, blocks)
+                                        st.rerun()
+                                name_col = cols[base_idx + 1]
+                                val_col = cols[base_idx + 2]
+                            else:
+                                name_col = cols[base_idx]
+                                val_col = cols[base_idx + 1]
+                            with name_col:
                                 st.markdown(f"<div style='padding-top:8px'><b>{param_name}</b></div>", unsafe_allow_html=True)
-                            with cols[idx + 1]:
+                            with val_col:
                                 if isinstance(entry.value, bool):
                                     new_val = st.checkbox("", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
                                     entry.value = new_val
@@ -224,6 +241,11 @@ def render_workspace():
             
             show_empty = st.checkbox("Show empty", value=st.session_state.show_empty)
             expand_all = st.checkbox("Expand all", value=st.session_state.expand_all)
+            
+            show_delete_keys = st.checkbox("Delete a key ❌", value=st.session_state.show_delete_keys, key="toggle_delete_keys")
+            if show_delete_keys != st.session_state.show_delete_keys:
+                st.session_state.show_delete_keys = show_delete_keys
+                st.rerun()
             
             editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
             pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")

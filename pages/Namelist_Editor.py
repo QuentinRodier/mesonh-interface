@@ -19,9 +19,8 @@ if 'selected_block' not in st.session_state:
     st.session_state.selected_block = None
 if 'doc_height' not in st.session_state:
     st.session_state.doc_height = 400
-
-if 'previous_state' not in st.session_state:
-    st.session_state.previous_state = None
+if 'show_delete_keys' not in st.session_state:
+    st.session_state.show_delete_keys = False
 
 
 def save_previous_state():
@@ -83,14 +82,30 @@ def render_namelist_view():
                     
                     entries = list(block.entries.items())
                     pair_count = st.session_state.get('pair_count', 3)
+                    delete_mode = st.session_state.get('show_delete_keys', False)
+                    
                     for i in range(0, len(entries), pair_count):
                         pair = entries[i:i+pair_count]
-                        cols = st.columns([1, 1] * pair_count)
+                        if delete_mode:
+                            cols = st.columns([1, 1, 1] * pair_count)
+                        else:
+                            cols = st.columns([1, 1] * pair_count)
+                        
                         for j, (param_name, entry) in enumerate(pair):
-                            idx = j * 2
-                            with cols[idx]:
+                            base_idx = j * (3 if delete_mode else 2)
+                            if delete_mode:
+                                with cols[base_idx]:
+                                    if st.button("❌", key=f"del_{block_name}_{param_name}"):
+                                        del block.entries[param_name]
+                                        st.rerun()
+                                name_col = cols[base_idx + 1]
+                                val_col = cols[base_idx + 2]
+                            else:
+                                name_col = cols[base_idx]
+                                val_col = cols[base_idx + 1]
+                            with name_col:
                                 st.markdown(f"<div style='padding-top:8px'><b>{param_name}</b></div>", unsafe_allow_html=True)
-                            with cols[idx + 1]:
+                            with val_col:
                                 if isinstance(entry.value, bool):
                                     new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
                                     entry.value = new_val
@@ -160,6 +175,22 @@ def render_upload():
                 new_blocks = {name: block for name, block in blocks.items() if block.entries}
                 st.session_state.namelist_blocks = new_blocks
         
+        show_delete_keys = st.checkbox("Delete a key ❌", value=st.session_state.show_delete_keys, key="toggle_delete_keys")
+        if show_delete_keys != st.session_state.show_delete_keys:
+            st.session_state.show_delete_keys = show_delete_keys
+            st.rerun()
+        
+        st.divider()
+
+        if st.session_state.namelist_blocks:
+            block_names = list(st.session_state.namelist_blocks.keys())
+            empty_count = sum(1 for b in st.session_state.namelist_blocks.values() if not b.entries)
+            st.sidebar.write(f"**{len(block_names)}** blocks, **{sum(len(b.entries) for b in st.session_state.namelist_blocks.values())}** params ({empty_count} empty)")
+            if st.sidebar.button("Show raw"):
+                st.sidebar.code(parser.write_namelist(st.session_state.namelist_blocks), language="fortran")
+
+        st.divider()
+
         editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
         pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
         if pair_count != st.session_state.get('pair_count', 3):
@@ -178,13 +209,6 @@ def render_upload():
         if show_empty != st.session_state.show_empty or expand_all != st.session_state.expand_all:
             st.rerun()
         
-        if st.session_state.namelist_blocks:
-            block_names = list(st.session_state.namelist_blocks.keys())
-            empty_count = sum(1 for b in st.session_state.namelist_blocks.values() if not b.entries)
-            st.sidebar.write(f"**{len(block_names)}** blocks, **{sum(len(b.entries) for b in st.session_state.namelist_blocks.values())}** params ({empty_count} empty)")
-            if st.sidebar.button("Show raw"):
-                st.sidebar.code(parser.write_namelist(st.session_state.namelist_blocks), language="fortran")
-
 
 def main():
     if 'pair_count' not in st.session_state:
