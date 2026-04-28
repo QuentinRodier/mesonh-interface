@@ -94,6 +94,45 @@ def get_block_title(block_name):
     return block_name
 
 
+def get_block_params(block_name):
+    rst_file = os.path.join(DOC_DIR, f"{block_name}.rst")
+    if not os.path.exists(rst_file):
+        return {}
+    params = {}
+    with open(rst_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+    lines = content.split('\n')
+    in_table = False
+    for line in lines:
+        if '.. csv-table::' in line:
+            in_table = True
+            continue
+        if in_table and line.strip().startswith('"') and '"' in line:
+            parts = line.split(',')
+            if len(parts) >= 3:
+                name = parts[0].strip().strip('"')
+                ftype = parts[1].strip().strip('"').upper()
+                default = parts[2].strip().strip('"')
+                if name and default and ftype:
+                    if 'CHARACTER' in ftype:
+                        params[name] = default.strip("'").strip('"')
+                    elif 'LOGICAL' in ftype:
+                        params[name] = default.upper() == '.TRUE.'
+                    elif 'INTEGER' in ftype:
+                        try:
+                            params[name] = int(default)
+                        except:
+                            params[name] = 0
+                    elif 'REAL' in ftype:
+                        try:
+                            params[name] = float(default)
+                        except:
+                            params[name] = 0.0
+        if in_table and line.strip().startswith('.. include::'):
+            in_table = False
+    return params
+
+
 def find_docs(block_name):
     possible_files = [
         os.path.join(DOC_DIR, f"{block_name.lower()}.rst"),

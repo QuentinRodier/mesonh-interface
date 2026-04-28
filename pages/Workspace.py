@@ -131,11 +131,40 @@ def render_editor(blocks, relative_path):
                                 elif isinstance(entry.value, str):
                                     new_val = st.text_input("", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
                                     entry.value = new_val
-            with col_delete:
-                if st.button("🗑️", key=f"delete_{relative_path}_{block_name}"):
-                    del blocks[block_name]
-                    save_file(relative_path, blocks)
-                    st.rerun()
+                with col_delete:
+                    with st.popover("➕"):
+                        block_defaults = docs.get_block_params(block_name)
+                        existing_params = set(block.entries.keys())
+                        available_params = {k: v for k, v in block_defaults.items() if k not in existing_params}
+
+                        if available_params:
+                            for param, default_val in available_params.items():
+                                st.checkbox(param, key=f"check_{relative_path}_{block_name}_{param}")
+
+                            col_pbtn1, col_pbtn2 = st.columns(2)
+                            with col_pbtn1:
+                                if st.button("Add selected", key=f"add_{relative_path}_{block_name}"):
+                                    for param in available_params:
+                                        if st.session_state.get(f"check_{relative_path}_{block_name}_{param}"):
+                                            block.entries[param] = parser.NamelistEntry(
+                                                name=param,
+                                                value=default_val,
+                                                raw_line=f"{param} = {default_val}",
+                                            )
+                                    save_file(relative_path, blocks)
+                                    st.rerun()
+                            with col_pbtn2:
+                                if st.button("Add All", key=f"addall_{relative_path}_{block_name}"):
+                                    for param, default_val in available_params.items():
+                                        block.entries[param] = parser.NamelistEntry(
+                                            name=param,
+                                            value=default_val,
+                                            raw_line=f"{param} = {default_val}",
+                                        )
+                                    save_file(relative_path, blocks)
+                                    st.rerun()
+                        else:
+                            st.caption("No params to add")
 
     with col_doc:
         st.subheader("📋 Documentation")
@@ -336,12 +365,27 @@ def render_workspace():
         relative_path = file_info['relative']
         blocks = file_info['blocks']
         
-        col_save, col_add = st.columns([1, 3])
+        col_save, col_delete, col_add = st.columns([1, 1, 3])
         with col_save:
             if st.button("💾 Save", key=f"save_{relative_path}"):
                 save_file(relative_path, blocks)
                 st.success("Saved!")
-        
+
+        with col_delete: 
+            with st.popover("🗑️ Delete blocks"):
+                if blocks:
+                    for block_name in list(blocks.keys()):
+                        st.checkbox(f"&{block_name}", key=f"del_block_{relative_path}_{block_name}")
+                    
+                    if st.button("Delete selected", key=f"del_blks_{relative_path}"):
+                        blocks_to_delete = [b for b in blocks if st.session_state.get(f"del_block_{relative_path}_{b}")]
+                        for block_name in blocks_to_delete:
+                            del blocks[block_name]
+                        save_file(relative_path, blocks)
+                        st.rerun()
+                else:
+                    st.caption("No blocks to delete")
+
         with col_add:
             filename = os.path.basename(file_info['path'])
             program_type = docs.get_program_type(filename)
