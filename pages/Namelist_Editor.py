@@ -127,10 +127,10 @@ def render_namelist_view():
     with col_doc:
         st.subheader("📋 Documentation")
         
-        block_options = ["<Select a namelist group>"] + list(st.session_state.namelist_blocks.keys())
+        block_options = ["Select a namelist group"] + list(st.session_state.namelist_blocks.keys())
         selected = st.selectbox("", block_options, key="doc_select")
         
-        if selected and selected != "<Select a block>":
+        if selected and selected != "Select a namelist group":
             doc_content = docs.find_docs(selected)
             if doc_content:
                 html = docs.render_rst(doc_content, block_name=selected)
@@ -179,6 +179,42 @@ def render_upload():
         if show_delete_keys != st.session_state.show_delete_keys:
             st.session_state.show_delete_keys = show_delete_keys
             st.rerun()
+        
+        current_file = st.session_state.current_file
+        if current_file:
+            program_type = docs.get_program_type(current_file)
+            available_blocks = docs.get_available_blocks(program_type) if program_type else []
+            existing_blocks = list(st.session_state.namelist_blocks.keys())
+            existing_titles = {docs.get_block_title(b) for b in available_blocks if docs.get_block_title(b) in existing_blocks}
+            possible_blocks = [b for b in available_blocks if docs.get_block_title(b) not in existing_blocks]
+            
+            if possible_blocks:
+                block_titles = {b: docs.get_block_title(b) for b in possible_blocks}
+                block_options = ["Select a namelist group"] + list(block_titles.values())
+                col_add1, col_add2 = st.columns([3, 1])
+                with col_add1:
+                    selected_title = st.selectbox("Add a block", block_options, key="add_block_select")
+                with col_add2:
+                    position = st.radio("Position", ["Top", "Bottom"], horizontal=True, key="add_block_position")
+                if selected_title and selected_title != "Select a namelist group":
+                    for block_name, title in block_titles.items():
+                        if title == selected_title:
+                            defaults = docs.get_block_defaults(block_name)
+                            new_block = parser.NamelistBlock(name=title)
+                            for param_name, default_value in defaults.items():
+                                new_block.entries[param_name] = parser.NamelistEntry(
+                                    name=param_name,
+                                    value=default_value,
+                                    raw_line=f"{param_name} = {default_value}",
+                                )
+                            if position == "Top":
+                                new_blocks = {title: new_block}
+                                new_blocks.update(st.session_state.namelist_blocks)
+                                st.session_state.namelist_blocks = new_blocks
+                            else:
+                                st.session_state.namelist_blocks[title] = new_block
+                            st.rerun()
+                            break
         
         st.divider()
 

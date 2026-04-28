@@ -140,10 +140,10 @@ def render_editor(blocks, relative_path):
     with col_doc:
         st.subheader("📋 Documentation")
         
-        block_options = ["<Select a namelist group>"] + list(blocks.keys())
+        block_options = ["Select a namelist group"] + list(blocks.keys())
         selected = st.selectbox("", block_options, key=f"doc_select_{relative_path}")
         
-        if selected and selected != "<Select a block>":
+        if selected and selected != "Select a namelist group":
             doc_content = docs.find_docs(selected)
             if doc_content:
                 html = docs.render_rst(doc_content, block_name=selected)
@@ -157,7 +157,7 @@ def render_workspace():
     with st.sidebar:
         st.header("📁 Workspace")
         
-        workspace_path = st.text_input("Workspace path", value=st.session_state.workspace_path or "", key="workspace_path_input")
+        workspace_path = st.text_input("Workspace path (relative or absolute)", value=st.session_state.workspace_path or "", key="workspace_path_input")
                 
         if st.button("🔄 Load Workspace"):
             if workspace_path and os.path.isdir(workspace_path):
@@ -336,9 +336,50 @@ def render_workspace():
         relative_path = file_info['relative']
         blocks = file_info['blocks']
         
-        if st.button("💾 Save", key=f"save_{relative_path}"):
-            save_file(relative_path, blocks)
-            st.success("Saved!")
+        col_save, col_add = st.columns([1, 3])
+        with col_save:
+            if st.button("💾 Save", key=f"save_{relative_path}"):
+                save_file(relative_path, blocks)
+                st.success("Saved!")
+        
+        with col_add:
+            filename = os.path.basename(file_info['path'])
+            program_type = docs.get_program_type(filename)
+            available_blocks = docs.get_available_blocks(program_type) if program_type else []
+            existing_in_file = set(blocks.keys())
+            possible = [b for b in available_blocks if docs.get_block_title(b) not in existing_in_file]
+            
+            if possible:
+                block_titles = {b: docs.get_block_title(b) for b in possible}
+                options = ["Select a namelist group"] + list(block_titles.values())
+                
+                col_select, col_pos = st.columns([3, 1])
+                with col_select:
+                    selected_title = st.selectbox("Add a block", options, key=f"add_block_{relative_path}")
+                with col_pos:
+                    position = st.radio("Position", ["Top", "Bottom"], horizontal=True, key=f"add_pos_{relative_path}")
+                
+                if selected_title and selected_title != "Select a namelist group":
+                    for block_name, title in block_titles.items():
+                        if title == selected_title:
+                            defaults = docs.get_block_defaults(block_name)
+                            new_block = parser.NamelistBlock(name=title)
+                            for param_name, default_value in defaults.items():
+                                new_block.entries[param_name] = parser.NamelistEntry(
+                                    name=param_name,
+                                    value=default_value,
+                                    raw_line=f"{param_name} = {default_value}",
+                                )
+                            if position == "Top":
+                                new_blocks = {title: new_block}
+                                new_blocks.update(blocks)
+                                blocks.clear()
+                                blocks.update(new_blocks)
+                            else:
+                                blocks[title] = new_block
+                            save_file(relative_path, file_info['blocks'])
+                            st.rerun()
+                            break
         
         render_editor(blocks, relative_path)
     #else:
