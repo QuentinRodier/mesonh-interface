@@ -170,12 +170,19 @@ def render_namelist_view():
 
     with col_doc:
         st.subheader("📋 Documentation")
-        
-        block_options = ["Select a namelist group"] + list(st.session_state.namelist_blocks.keys())
+
+        current_file = st.session_state.current_file
+        program_type = docs.get_program_type(current_file) if current_file else None
+        available_blocks = docs.get_available_blocks(program_type) if program_type else []
+
+        block_map = {docs.get_block_title(block): block for block in available_blocks}
+
+        block_options = ["Select a namelist group"] + list(block_map.keys())
         selected = st.selectbox("", block_options, key="doc_select")
-        
+
         if selected and selected != "Select a namelist group":
-            doc_content = docs.find_docs(selected)
+            rst_name = block_map[selected]
+            doc_content = docs.find_docs(rst_name)            
             if doc_content:
                 html = docs.render_rst(doc_content, block_name=selected)
                 if html:
