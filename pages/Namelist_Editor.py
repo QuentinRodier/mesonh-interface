@@ -22,6 +22,18 @@ if 'doc_height' not in st.session_state:
 if 'show_delete_keys' not in st.session_state:
     st.session_state.show_delete_keys = False
 
+def is_default_value(block_name, param_name, current_value):
+    defaults = docs.get_block_defaults(block_name)
+
+    if param_name not in defaults:
+        return False
+
+    default_value = defaults[param_name]
+
+    try:
+        return str(default_value).strip().lower() == str(current_value).strip().lower()
+    except:
+        return default_value == current_value
 
 def save_previous_state():
     blocks = st.session_state.namelist_blocks
@@ -136,7 +148,11 @@ def render_namelist_view():
                                 name_col = cols[base_idx]
                                 val_col = cols[base_idx + 1]
                             with name_col:
-                                st.markdown(f"<div style='padding-top:8px'><b>{param_name}</b></div>", unsafe_allow_html=True)
+                                is_default = is_default_value(block_name, param_name, entry.value)
+                                bg = "#587e61" if is_default else "transparent"
+                                st.markdown(f"""<div style='padding:6px;margin-top:4px;border-radius:6px;
+                                            background-color:{bg};font-weight:bold;'>{param_name}</div>""",
+                                    unsafe_allow_html=True)
                             with val_col:
                                 if isinstance(entry.value, bool):
                                     new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
