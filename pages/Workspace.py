@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from modules import parser, docs
+from modules import parser, docs, advise
 
 st.set_page_config(page_title="Workspace", layout="wide")
 
@@ -189,27 +189,58 @@ def render_editor(blocks, relative_path):
 
     with col_doc:
         st.subheader("📋 Documentation")
-
+        
         selected_file = st.session_state.get("selected_file")
         current_file = os.path.basename(selected_file["path"]) if selected_file else None
-
+        
         program_type = docs.get_program_type(current_file) if current_file else None
         available_blocks = docs.get_available_blocks(program_type) if program_type else []
-
+        
         block_map = {docs.get_block_title(block): block for block in available_blocks}
+        
         block_options = ["Select a namelist group"] + list(block_map.keys())
         selected = st.selectbox("", block_options, key="doc_select")
-
+        
         if selected and selected != "Select a namelist group":
             rst_name = block_map[selected]
-            doc_content = docs.find_docs(rst_name)
-
+            doc_content = docs.find_docs(rst_name)            
             if doc_content:
                 html = docs.render_rst(doc_content, block_name=selected)
                 if html:
                     st.html(html)
                 else:
                     st.warning(f"No documentation for {selected}")
+        
+        st.subheader("💡 Advise")
+        
+        if selected_file and selected_file.get("blocks"):
+            blocks = selected_file["blocks"]
+            current_file = os.path.basename(selected_file["path"])
+            results = advise.run_all_checks(blocks, current_file)
+            
+            total_issues = len(results['blocks']) + len(results['params']) + len(results['values'])
+            
+            if total_issues == 0:
+                st.success("✅ All checks passed")
+            else:
+                st.warning(f"⚠️ {total_issues} issue(s) found")
+                
+                if results['blocks']:
+                    with st.expander(f"❌ Block issues ({len(results['blocks'])})"):
+                        for issue in results['blocks']:
+                            st.write(f"• {issue}")
+                
+                if results['params']:
+                    with st.expander(f"❌ Parameter issues ({len(results['params'])})"):
+                        for issue in results['params']:
+                            st.write(f"• {issue}")
+                
+                if results['values']:
+                    with st.expander(f"❌ Value type issues ({len(results['values'])})"):
+                        for issue in results['values']:
+                            st.write(f"• {issue}")
+        else:
+            st.info("Select a file to run Advise checks")
 
 
 def render_workspace():
