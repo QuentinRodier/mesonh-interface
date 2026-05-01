@@ -62,7 +62,7 @@ def get_block_defaults(block_name):
                 name = parts[0].strip().strip('"')
                 ftype = parts[1].strip().strip('"').upper()
                 default = parts[2].strip().strip('"')
-                if name and default and ftype:
+                if name and ftype:
                     if 'CHARACTER' in ftype:
                         defaults[name] = default.strip("'").strip('"')
                     elif 'LOGICAL' in ftype:
@@ -113,7 +113,7 @@ def get_block_params(block_name):
                 name = parts[0].strip().strip('"')
                 ftype = parts[1].strip().strip('"').upper()
                 default = parts[2].strip().strip('"')
-                if name and default and ftype:
+                if name and ftype:
                     if 'CHARACTER' in ftype:
                         params[name] = default.strip("'").strip('"')
                     elif 'LOGICAL' in ftype:
