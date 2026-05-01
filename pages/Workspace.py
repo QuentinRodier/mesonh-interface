@@ -27,6 +27,8 @@ if 'show_empty' not in st.session_state:
     st.session_state.show_empty = False
 if 'expand_all' not in st.session_state:
     st.session_state.expand_all = True
+if 'colorize_default' not in st.session_state:
+    st.session_state.colorize_default = True
 if 'show_delete_keys' not in st.session_state:
     st.session_state.show_delete_keys = False
 
@@ -129,7 +131,10 @@ def render_editor(blocks, relative_path):
                                 val_col = cols[base_idx + 1]
                             with name_col:
                                 is_default = is_default_value(block_name, param_name, entry.value)
-                                bg = "#587e61" if is_default else "transparent"
+                                if st.session_state.colorize_default:
+                                    bg = "#587e61" if is_default else "transparent"
+                                else:
+                                    bg = "transparent"
                                 st.markdown(f"""<div style='padding:6px;margin-top:4px;border-radius:6px;
                                             background-color:{bg};font-weight:bold;'>{param_name}</div>""",
                                     unsafe_allow_html=True)
@@ -294,8 +299,9 @@ def render_workspace():
             st.divider()
             st.header("⚙️ Settings")
             
-            show_empty = st.checkbox("Show empty", value=st.session_state.show_empty)
-            expand_all = st.checkbox("Expand all", value=st.session_state.expand_all)
+            st.checkbox("Show empty blocks", key="show_empty", value=False)
+            st.checkbox("Expand all blocks", key="expand_all", value=True)  
+            st.checkbox("Colorize default values", key="colorize_default", value=False)
             
             show_delete_keys = st.checkbox("Delete a key ❌", value=st.session_state.show_delete_keys, key="toggle_delete_keys")
             if show_delete_keys != st.session_state.show_delete_keys:
@@ -306,13 +312,7 @@ def render_workspace():
             editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
             pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
             doc_height = st.slider("Doc height", 400, 2000, 800, key="doc_height_slider")
-            
-            if show_empty != st.session_state.show_empty:
-                st.session_state.show_empty = show_empty
-            
-            if expand_all != st.session_state.expand_all:
-                st.session_state.expand_all = expand_all
-            
+                       
             if pair_count != st.session_state.get('pair_count', 3):
                 st.session_state.pair_count = pair_count
                        

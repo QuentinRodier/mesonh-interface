@@ -258,19 +258,13 @@ def render_workspace():
             st.divider()
             st.header("⚙️ Settings")
             
-            show_empty = st.checkbox("Show empty", value=st.session_state.show_empty)
-            expand_all = st.checkbox("Expand all", value=st.session_state.expand_all)
+            st.checkbox("Show empty blocks", key="show_empty", value=False)
+            st.checkbox("Expand all blocks", key="expand_all", value=True)  
             
             editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
             pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
             doc_height = st.slider("Doc height", 400, 2000, 800, key="doc_height_slider")
-            
-            if show_empty != st.session_state.show_empty:
-                st.session_state.show_empty = show_empty
-            
-            if expand_all != st.session_state.expand_all:
-                st.session_state.expand_all = expand_all
-            
+                        
             if pair_count != st.session_state.get('pair_count', 3):
                 st.session_state.pair_count = pair_count
             

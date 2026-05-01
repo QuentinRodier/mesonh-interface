@@ -15,6 +15,8 @@ if 'show_empty' not in st.session_state:
     st.session_state.show_empty = False
 if 'expand_all' not in st.session_state:
     st.session_state.expand_all = True
+if 'colorize_default' not in st.session_state:
+    st.session_state.colorize_default = True
 if 'selected_block' not in st.session_state:
     st.session_state.selected_block = None
 if 'doc_height' not in st.session_state:
@@ -149,7 +151,10 @@ def render_namelist_view():
                                 val_col = cols[base_idx + 1]
                             with name_col:
                                 is_default = is_default_value(block_name, param_name, entry.value)
-                                bg = "#587e61" if is_default else "transparent"
+                                if st.session_state.colorize_default:
+                                    bg = "#587e61" if is_default else "transparent"
+                                else:
+                                    bg = "transparent"
                                 st.markdown(f"""<div style='padding:6px;margin-top:4px;border-radius:6px;
                                             background-color:{bg};font-weight:bold;'>{param_name}</div>""",
                                     unsafe_allow_html=True)
@@ -214,9 +219,10 @@ def render_upload():
         st.divider()
         st.header("⚙️ Settings")
         
-        show_empty = st.checkbox("Show empty", value=st.session_state.show_empty)
-        expand_all = st.checkbox("Expand all", value=st.session_state.expand_all)
-        
+        st.checkbox("Show empty blocks", key="show_empty", value=False)
+        st.checkbox("Expand all blocks", key="expand_all", value=True)  
+        st.checkbox("Colorize default values", key="colorize_default", value=False)
+
         col1, col2 = st.columns([1, 1])
         with col1:
             st.button("A→Z", key="btn_sort", disabled=True)
@@ -299,16 +305,6 @@ def render_upload():
         if doc_height != st.session_state.get('doc_height', 400):
             st.session_state.doc_height = doc_height
             st.rerun()
-        
-        if show_empty != st.session_state.show_empty:
-            st.session_state.show_empty = show_empty
-        
-        if expand_all != st.session_state.expand_all:
-            st.session_state.expand_all = expand_all
-        
-        if show_empty != st.session_state.show_empty or expand_all != st.session_state.expand_all:
-            st.rerun()
-        
 
 def main():
     if 'pair_count' not in st.session_state:
