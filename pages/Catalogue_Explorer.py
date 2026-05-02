@@ -29,6 +29,8 @@ if 'expand_all' not in st.session_state:
     st.session_state.expand_all = True
 if 'workspace_tree_selected' not in st.session_state:
     st.session_state.workspace_tree_selected = {}
+if 'doc_height' not in st.session_state:
+    st.session_state.doc_height = 800
 
 def scan_workspace(workspace_path):
     namelist_files = {}
@@ -109,7 +111,7 @@ def render_editor(blocks, relative_path):
                                 st.text_input("", value=entry.value, disabled=True, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
 
     with col_doc:
-        st.subheader("📋 Documentation")
+        st.subheader("📋 User's guide")
         
         block_options = ["<Select a namelist group>"] + list(blocks.keys())
         selected = st.selectbox("", block_options, key=f"doc_select_{relative_path}")
@@ -117,14 +119,14 @@ def render_editor(blocks, relative_path):
         if selected and selected != "<Select a namelist group>":
             doc_content = docs.find_docs(selected)
             if doc_content:
-                html = docs.render_rst(doc_content, block_name=selected)
+                html = docs.render_rst(doc_content, block_name=selected, height=st.session_state.doc_height)
                 if html:
                     st.html(html)
                 else:
                     st.warning(f"No documentation for {selected}")
     
     with col_doc:
-        st.subheader("📁 Case Documentation")
+        st.subheader("📁 Catalogue Documentation")
         
         catalogue_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "catalogue")
         cases = []
@@ -139,7 +141,7 @@ def render_editor(blocks, relative_path):
         
         if cases:
             case_names = ["<Select a case>"] + [name for name, _ in cases]
-            selected_case = st.selectbox("Case", case_names, key=f"case_select_{relative_path}")
+            selected_case = st.selectbox("", case_names, key=f"case_select_{relative_path}")
             
             if selected_case and selected_case != "<Select a case>":
                 case_dict = dict(cases)
@@ -147,7 +149,7 @@ def render_editor(blocks, relative_path):
                 try:
                     with open(rst_file, 'r', encoding='utf-8') as f:
                         content = f.read()
-                    html = docs.render_rst(content)
+                    html = docs.render_rst(content, height=st.session_state.doc_height)
                     if html:
                         st.html(html)
                     else:
@@ -298,7 +300,9 @@ def render_workspace():
             editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
             pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
             doc_height = st.slider("Doc height", 400, 2000, 800, key="doc_height_slider")
-                        
+            if doc_height != st.session_state.get('doc_height', 800):
+                st.session_state.doc_height = doc_height
+                st.rerun()                        
             if pair_count != st.session_state.get('pair_count', 3):
                 st.session_state.pair_count = pair_count
             

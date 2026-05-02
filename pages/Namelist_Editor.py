@@ -20,7 +20,7 @@ if 'colorize_default' not in st.session_state:
 if 'selected_block' not in st.session_state:
     st.session_state.selected_block = None
 if 'doc_height' not in st.session_state:
-    st.session_state.doc_height = 400
+    st.session_state.doc_height = 800
 if 'show_delete_keys' not in st.session_state:
     st.session_state.show_delete_keys = False
 
@@ -174,7 +174,7 @@ def render_namelist_view():
                                     entry.value = new_val
 
     with col_doc:
-        st.subheader("📋 Documentation")
+        st.subheader("📋 User's guide")
         
         current_file = st.session_state.current_file
         program_type = docs.get_program_type(current_file) if current_file else None
@@ -189,7 +189,7 @@ def render_namelist_view():
             rst_name = block_map[selected]
             doc_content = docs.find_docs(rst_name)            
             if doc_content:
-                html = docs.render_rst(doc_content, block_name=selected)
+                html = docs.render_rst(doc_content, block_name=selected, height=st.session_state.doc_height)
                 if html:
                     st.html(html)
                 else:
@@ -333,7 +333,7 @@ def render_upload():
         if pair_count != st.session_state.get('pair_count', 3):
             st.session_state.pair_count = pair_count
         doc_height = st.slider("Doc height", 400, 2000, 800, key="doc_height_slider")
-        if doc_height != st.session_state.get('doc_height', 400):
+        if doc_height != st.session_state.get('doc_height', 800):
             st.session_state.doc_height = doc_height
             st.rerun()
 
