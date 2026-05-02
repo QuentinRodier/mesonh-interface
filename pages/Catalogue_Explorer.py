@@ -114,7 +114,7 @@ def render_editor(blocks, relative_path):
         block_options = ["<Select a namelist group>"] + list(blocks.keys())
         selected = st.selectbox("", block_options, key=f"doc_select_{relative_path}")
         
-        if selected and selected != "<Select a block>":
+        if selected and selected != "<Select a namelist group>":
             doc_content = docs.find_docs(selected)
             if doc_content:
                 html = docs.render_rst(doc_content, block_name=selected)
@@ -122,6 +122,40 @@ def render_editor(blocks, relative_path):
                     st.html(html)
                 else:
                     st.warning(f"No documentation for {selected}")
+    
+    with col_doc:
+        st.subheader("📁 Case Documentation")
+        
+        catalogue_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "catalogue")
+        cases = []
+        
+        if os.path.exists(catalogue_dir):
+            for item in os.listdir(catalogue_dir):
+                case_path = os.path.join(catalogue_dir, item)
+                if os.path.isdir(case_path):
+                    rst_file = os.path.join(case_path, "case_description.rst")
+                    if os.path.exists(rst_file):
+                        cases.append((item, rst_file))
+        
+        if cases:
+            case_names = ["<Select a case>"] + [name for name, _ in cases]
+            selected_case = st.selectbox("Case", case_names, key=f"case_select_{relative_path}")
+            
+            if selected_case and selected_case != "<Select a case>":
+                case_dict = dict(cases)
+                rst_file = case_dict[selected_case]
+                try:
+                    with open(rst_file, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    html = docs.render_rst(content)
+                    if html:
+                        st.html(html)
+                    else:
+                        st.warning(f"No documentation for {selected_case}")
+                except Exception as e:
+                    st.error(f"Error reading case description: {e}")
+        else:
+            st.info("No case descriptions found in catalogue/")
 
 
 def render_workspace():
