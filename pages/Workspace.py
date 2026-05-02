@@ -165,7 +165,7 @@ def render_editor(blocks, relative_path):
                             col_pbtn1, col_pbtn2 = st.columns(2)
                             with col_pbtn1:
                                 if st.button("Add selected", key=f"add_{relative_path}_{block_name}"):
-                                    for param in available_params:
+                                    for param, default_val in available_params.items():
                                         if st.session_state.get(f"check_{relative_path}_{block_name}_{param}"):
                                             block.entries[param] = parser.NamelistEntry(
                                                 name=param,
