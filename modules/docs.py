@@ -7,6 +7,25 @@ EXAMPLES_DIR = os.path.join(BASE_DIR, "examples")
 EXECUTABLES_DIR = os.path.join(BASE_DIR, "executables_namelists")
 
 
+def is_array_type(type_str):
+    """Check if parameter type indicates an array."""
+    type_upper = type_str.upper()
+    # Array patterns: (:), ARRAY keyword, DIMENSION keyword
+    # Also: REAL(NFORCF), INTEGER(NB), LOGICAL(N) where there's a variable name in parens
+    if '(:' in type_upper or type_upper.startswith('ARRAY') or 'DIMENSION' in type_upper:
+        return True
+    # Check for REAL(NAME), INTEGER(NAME), LOGICAL(NAME) patterns
+    if re.match(r'(REAL|INTEGER|LOGICAL)\s*\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\)', type_upper):
+        return True
+    return False
+
+
+def clean_param_name(name):
+    """Remove array indices from parameter name."""
+    cleaned = re.sub(r'\([^)]*\)', '', name)
+    return cleaned.strip()
+
+
 PROGRAM_PATTERNS = {
     'prep_ideal_case': ['PRE_IDEA'],
     'prep_pgd': ['PRE_PGD'],
@@ -59,7 +78,8 @@ def get_block_defaults(block_name):
         if in_table and line.strip().startswith('"') and '"' in line:
             parts = line.split(',')
             if len(parts) >= 3:
-                name = parts[0].strip().strip('"')
+                raw_name = parts[0].strip().strip('"')
+                name = clean_param_name(raw_name)
                 ftype = parts[1].strip().strip('"').upper()
                 default = parts[2].strip().strip('"')
                 if name and ftype:
@@ -110,24 +130,50 @@ def get_block_params(block_name):
         if in_table and line.strip().startswith('"') and '"' in line:
             parts = line.split(',')
             if len(parts) >= 3:
-                name = parts[0].strip().strip('"')
+                raw_name = parts[0].strip().strip('"')
+                name = clean_param_name(raw_name)
                 ftype = parts[1].strip().strip('"').upper()
                 default = parts[2].strip().strip('"')
+                is_array = is_array_type(ftype)
                 if name and ftype:
                     if 'CHARACTER' in ftype:
-                        params[name] = default.strip("'").strip('"')
+                        params[name] = {
+                            'value': default.strip("'").strip('"'),
+                            'is_array': is_array,
+                            'type': ftype
+                        }
                     elif 'LOGICAL' in ftype:
-                        params[name] = default.upper() == '.TRUE.'
+                        params[name] = {
+                            'value': default.upper() == '.TRUE.',
+                            'is_array': is_array,
+                            'type': ftype
+                        }
                     elif 'INTEGER' in ftype:
                         try:
-                            params[name] = int(default)
+                            params[name] = {
+                                'value': int(default),
+                                'is_array': is_array,
+                                'type': ftype
+                            }
                         except:
-                            params[name] = 0
+                            params[name] = {
+                                'value': 0,
+                                'is_array': is_array,
+                                'type': ftype
+                            }
                     elif 'REAL' in ftype:
                         try:
-                            params[name] = float(default)
+                            params[name] = {
+                                'value': float(default),
+                                'is_array': is_array,
+                                'type': ftype
+                            }
                         except:
-                            params[name] = 0.0
+                            params[name] = {
+                                'value': 0.0,
+                                'is_array': is_array,
+                                'type': ftype
+                            }
         if in_table and line.strip().startswith('.. include::'):
             in_table = False
     return params

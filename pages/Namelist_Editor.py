@@ -43,7 +43,15 @@ def save_previous_state():
     for name, block in blocks.items():
         entries = {}
         for param_name, entry in block.entries.items():
-            entries[param_name] = {'name': entry.name, 'value': entry.value, 'raw_line': entry.raw_line, 'decimals': entry.decimals}
+            entries[param_name] = {
+                'name': entry.name,
+                'value': entry.value,
+                'raw_line': entry.raw_line,
+                'decimals': entry.decimals,
+                'base_name': getattr(entry, 'base_name', entry.name),
+                'is_array': getattr(entry, 'is_array', False),
+                'array_index': getattr(entry, 'array_index', '')
+            }
         previous[name] = {'entries': entries, 'raw_lines': list(block.raw_lines)}
     st.session_state.previous_state = previous
 
@@ -57,9 +65,12 @@ def undo():
             for param_name, entry_data in data['entries'].items():
                 block.entries[param_name] = parser.NamelistEntry(
                     name=entry_data['name'],
+                    base_name=entry_data.get('base_name', entry_data['name']),
                     value=entry_data['value'],
                     raw_line=entry_data['raw_line'],
-                    decimals=entry_data.get('decimals', 4)
+                    decimals=entry_data.get('decimals', 4),
+                    is_array=entry_data.get('is_array', False),
+                    array_index=entry_data.get('array_index', '')
                 )
             block.raw_lines = data['raw_lines']
             blocks[name] = block
@@ -93,85 +104,112 @@ def render_namelist_view():
                         block_defaults = docs.get_block_params(block_name)
                         existing_params = set(block.entries.keys())
                         available_params = {k: v for k, v in block_defaults.items() if k not in existing_params}
-                        
+
                         if available_params:
                             for param, default_val in available_params.items():
-                                st.checkbox(param, key=f"check_{block_name}_{param}")
-                            
+                                is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+
+                                col_check, col_idx = st.columns([3, 1])
+                                with col_check:
+                                    st.checkbox(param, key=f"check_{block_name}_{param}")
+                                if is_array:
+                                    with col_idx:
+                                        st.text_input("Idx", value="1", key=f"idx_{block_name}_{param}", label_visibility="collapsed")
+
                             col_pbtn1, col_pbtn2 = st.columns(2)
                             with col_pbtn1:
                                 if st.button("Add selected", key=f"add_{block_name}"):
                                     for param, default_val in available_params.items():
                                         if st.session_state.get(f"check_{block_name}_{param}"):
-                                            block.entries[param] = parser.NamelistEntry(
-                                                name=param,
-                                                value=default_val,
-                                                raw_line=f"{param} = {default_val}",
+                                            is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+                                            if is_array:
+                                                idx = st.session_state.get(f"idx_{block_name}_{param}", "1")
+                                                entry_name = f"{param}({idx})"
+                                                base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
+                                            else:
+                                                entry_name = param
+                                                base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
+                                            block.entries[entry_name] = parser.NamelistEntry(
+                                                name=entry_name,
+                                                base_name=param,
+                                                value=base_value,
+                                                raw_line=f"{entry_name} = {base_value}",
+                                                is_array=is_array,
+                                                array_index=f"({idx})" if is_array else ""
                                             )
                                     st.rerun()
                             with col_pbtn2:
                                 if st.button("Add All", key=f"addall_{block_name}"):
                                     for param, default_val in available_params.items():
+                                        is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+                                        if is_array:
+                                            continue
+                                        base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
                                         block.entries[param] = parser.NamelistEntry(
                                             name=param,
-                                            value=default_val,
-                                            raw_line=f"{param} = {default_val}",
+                                            base_name=param,
+                                            value=base_value,
+                                            raw_line=f"{param} = {base_value}",
+                                            is_array=False,
+                                            array_index=""
                                         )
                                     st.rerun()
                         else:
                             st.caption("No params to add")
             with col_block:
-                with st.expander(f"&{block_name} ({len(block.entries)})", expanded=st.session_state.expand_all):
-                    if not block.entries:
-                        st.caption("Empty block")
-                        continue
-                    
-                    entries = list(block.entries.items())
-                    pair_count = st.session_state.get('pair_count', 3)
-                    delete_mode = st.session_state.get('show_delete_keys', False)
-                    
-                    for i in range(0, len(entries), pair_count):
-                        pair = entries[i:i+pair_count]
-                        if delete_mode:
-                            cols = st.columns([1, 1, 1] * pair_count)
-                        else:
-                            cols = st.columns([1, 1] * pair_count)
-                        
-                        for j, (param_name, entry) in enumerate(pair):
-                            base_idx = j * (3 if delete_mode else 2)
-                            if delete_mode:
-                                with cols[base_idx]:
-                                    if st.button("❌", key=f"del_{block_name}_{param_name}"):
-                                        del block.entries[param_name]
-                                        st.rerun()
-                                name_col = cols[base_idx + 1]
-                                val_col = cols[base_idx + 2]
-                            else:
-                                name_col = cols[base_idx]
-                                val_col = cols[base_idx + 1]
-                            with name_col:
-                                is_default = is_default_value(block_name, param_name, entry.value)
-                                if st.session_state.colorize_default:
-                                    bg = "#587e61" if is_default else "transparent"
-                                else:
-                                    bg = "transparent"
-                                st.markdown(f"""<div style='padding:6px;margin-top:4px;border-radius:6px;
-                                            background-color:{bg};font-weight:bold;'>{param_name}</div>""",
-                                    unsafe_allow_html=True)
-                            with val_col:
-                                if isinstance(entry.value, bool):
-                                    new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
-                                    entry.value = new_val
-                                elif isinstance(entry.value, (int, float)):
-                                    if isinstance(entry.value, int):
-                                        new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
-                                    else:
-                                        decimals = getattr(entry, 'decimals', 4)
-                                        new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
-                                    entry.value = new_val
-                                elif isinstance(entry.value, str):
-                                    new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
-                                    entry.value = new_val
+                 with st.expander(f"&{block_name} ({len(block.entries)})", expanded=st.session_state.expand_all):
+                     if not block.entries:
+                         st.caption("Empty block")
+                         continue
+                     
+                     entries = list(block.entries.items())
+                     pair_count = st.session_state.get('pair_count', 3)
+                     delete_mode = st.session_state.get('show_delete_keys', False)
+                     
+                     for i in range(0, len(entries), pair_count):
+                         pair = entries[i:i+pair_count]
+                         if delete_mode:
+                             cols = st.columns([1, 1, 3] * len(pair))
+                         else:
+                             cols = st.columns([1, 3] * len(pair))
+                         
+                         for j, (param_name, entry) in enumerate(pair):
+                             base_idx = j * (3 if delete_mode else 2)
+                             if delete_mode:
+                                 with cols[base_idx]:
+                                     if st.button("❌", key=f"del_{block_name}_{param_name}"):
+                                         del block.entries[param_name]
+                                         st.rerun()
+                                 name_col = cols[base_idx + 1]
+                                 val_col = cols[base_idx + 2]
+                             else:
+                                 name_col = cols[base_idx]
+                                 val_col = cols[base_idx + 1]
+                             
+                             with name_col:
+                                 is_default = is_default_value(block_name, param_name, entry.value)
+                                 if st.session_state.colorize_default:
+                                     bg = "#587e61" if is_default else "transparent"
+                                 else:
+                                     bg = "transparent"
+                                 st.markdown(f"""<div style='padding:6px;margin-top:4px;border-radius:6px;
+                                             background-color:{bg};font-weight:bold;'>{param_name}</div>""",
+                                     unsafe_allow_html=True)
+                             
+                             with val_col:
+                                 if isinstance(entry.value, bool):
+                                     new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                     entry.value = new_val
+                                 elif isinstance(entry.value, (int, float)):
+                                     if isinstance(entry.value, int):
+                                         new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
+                                     else:
+                                         decimals = getattr(entry, 'decimals', 4)
+                                         new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
+                                     entry.value = new_val
+                                 elif isinstance(entry.value, str):
+                                     new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                     entry.value = new_val
 
     with col_doc:
         st.subheader("📋 User's guide")
@@ -288,12 +326,19 @@ def render_upload():
                     for block_name, title in block_titles.items():
                         if title == selected_title:
                             defaults = docs.get_block_defaults(block_name)
+                            params = docs.get_block_params(block_name)
                             new_block = parser.NamelistBlock(name=title)
                             for param_name, default_value in defaults.items():
+                                is_array = params.get(param_name, {}).get('is_array', False) if isinstance(params.get(param_name), dict) else False
+                                if is_array:
+                                    continue
                                 new_block.entries[param_name] = parser.NamelistEntry(
                                     name=param_name,
+                                    base_name=param_name,
                                     value=default_value,
                                     raw_line=f"{param_name} = {default_value}",
+                                    is_array=False,
+                                    array_index=""
                                 )
                             if position == "Top":
                                 new_blocks = {title: new_block}

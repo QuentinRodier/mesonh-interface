@@ -142,47 +142,72 @@ def render_editor(blocks, relative_path):
                                     unsafe_allow_html=True)
                             with val_col:
                                 if isinstance(entry.value, bool):
-                                    new_val = st.checkbox("", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
+                                    new_val = st.checkbox(" ", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
                                     entry.value = new_val
                                 elif isinstance(entry.value, (int, float)):
                                     if isinstance(entry.value, int):
-                                        new_val = st.number_input("", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", format="%d", label_visibility="collapsed")
+                                        new_val = st.number_input(" ", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", format="%d", label_visibility="collapsed")
                                     else:
                                         decimals = getattr(entry, 'decimals', 4)
-                                        new_val = st.number_input("", value=float(entry.value), key=f"{relative_path}_{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
+                                        new_val = st.number_input(" ", value=float(entry.value), key=f"{relative_path}_{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
                                     entry.value = new_val
                                 elif isinstance(entry.value, str):
-                                    new_val = st.text_input("", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
+                                    new_val = st.text_input(" ", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
                                     entry.value = new_val
                 with col_delete:
                     with st.popover("➕"):
                         block_defaults = docs.get_block_params(block_name)
                         existing_params = set(block.entries.keys())
                         available_params = {k: v for k, v in block_defaults.items() if k not in existing_params}
-
+                        
                         if available_params:
                             for param, default_val in available_params.items():
-                                st.checkbox(param, key=f"check_{relative_path}_{block_name}_{param}")
+                                is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+
+                                col_check, col_idx = st.columns([3, 1])
+                                with col_check:
+                                    st.checkbox(param, key=f"check_{relative_path}_{block_name}_{param}")
+                                if is_array:
+                                    with col_idx:
+                                        st.text_input("Idx", value="1", key=f"idx_{relative_path}_{block_name}_{param}", label_visibility="collapsed")
 
                             col_pbtn1, col_pbtn2 = st.columns(2)
                             with col_pbtn1:
                                 if st.button("Add selected", key=f"add_{relative_path}_{block_name}"):
                                     for param, default_val in available_params.items():
                                         if st.session_state.get(f"check_{relative_path}_{block_name}_{param}"):
-                                            block.entries[param] = parser.NamelistEntry(
-                                                name=param,
-                                                value=default_val,
-                                                raw_line=f"{param} = {default_val}",
+                                            is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+                                            if is_array:
+                                                idx = st.session_state.get(f"idx_{relative_path}_{block_name}_{param}", "1")
+                                                entry_name = f"{param}({idx})"
+                                                base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
+                                            else:
+                                                entry_name = param
+                                                base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
+                                            block.entries[entry_name] = parser.NamelistEntry(
+                                                name=entry_name,
+                                                base_name=param,
+                                                value=base_value,
+                                                raw_line=f"{entry_name} = {base_value}",
+                                                is_array=is_array,
+                                                array_index=f"({idx})" if is_array else ""
                                             )
                                     save_file(relative_path, blocks)
                                     st.rerun()
                             with col_pbtn2:
                                 if st.button("Add All", key=f"addall_{relative_path}_{block_name}"):
                                     for param, default_val in available_params.items():
+                                        is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+                                        if is_array:
+                                            continue
+                                        base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
                                         block.entries[param] = parser.NamelistEntry(
                                             name=param,
-                                            value=default_val,
-                                            raw_line=f"{param} = {default_val}",
+                                            base_name=param,
+                                            value=base_value,
+                                            raw_line=f"{param} = {base_value}",
+                                            is_array=False,
+                                            array_index=""
                                         )
                                     save_file(relative_path, blocks)
                                     st.rerun()
@@ -201,7 +226,7 @@ def render_editor(blocks, relative_path):
         block_map = {docs.get_block_title(block): block for block in available_blocks}
         
         block_options = ["Select a namelist group"] + list(block_map.keys())
-        selected = st.selectbox("", block_options, key="doc_select")
+        selected = st.selectbox(" ", block_options, key="doc_select")
         
         if selected and selected != "Select a namelist group":
             rst_name = block_map[selected]
@@ -445,7 +470,6 @@ def render_workspace():
                         st.rerun()
                 else:
                     st.caption("No blocks to delete")
-
         with col_add:
             filename = os.path.basename(file_info['path'])
             program_type = docs.get_program_type(filename)
@@ -467,12 +491,19 @@ def render_workspace():
                     for block_name, title in block_titles.items():
                         if title == selected_title:
                             defaults = docs.get_block_defaults(block_name)
+                            params = docs.get_block_params(block_name)
                             new_block = parser.NamelistBlock(name=title)
                             for param_name, default_value in defaults.items():
+                                is_array = params.get(param_name, {}).get('is_array', False) if isinstance(params.get(param_name), dict) else False
+                                if is_array:
+                                    continue
                                 new_block.entries[param_name] = parser.NamelistEntry(
                                     name=param_name,
+                                    base_name=param_name,
                                     value=default_value,
                                     raw_line=f"{param_name} = {default_value}",
+                                    is_array=False,
+                                    array_index=""
                                 )
                             if position == "Top":
                                 new_blocks = {title: new_block}
@@ -484,17 +515,16 @@ def render_workspace():
                             save_file(relative_path, file_info['blocks'])
                             st.rerun()
                             break
-        
+                
         render_editor(blocks, relative_path)
     #else:
         st.info("Select a file from the dropdown above to edit")
-
 
 def main():
     if 'pair_count' not in st.session_state:
         st.session_state.pair_count = 3
     render_workspace()
 
-
 if __name__ == "__main__":
     main()
+

@@ -36,8 +36,9 @@ def check_param_names(blocks, program_type):
         valid_params = docs.get_block_params(short_name)
         valid_param_names = set(valid_params.keys())
 
-        for param_name in block.entries.keys():
-            if param_name not in valid_param_names:
+        for param_name, entry in block.entries.items():
+            base_param = entry.base_name
+            if base_param not in valid_param_names:
                 issues.append(f"Parameter '{param_name}' in block '{block_name}' not found in documentation")
 
     return issues
@@ -57,7 +58,9 @@ def check_param_values(blocks):
         for param_name, entry in block.entries.items():
             if not param_name:
                 continue
-            first_letter = param_name[0].upper()
+            # Use base_name (without array index) for first letter check
+            check_name = entry.base_name if hasattr(entry, 'base_name') else param_name
+            first_letter = check_name[0].upper()
 
             expected_type = None
             for letters, t in type_map.items():

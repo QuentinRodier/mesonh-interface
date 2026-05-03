@@ -10,9 +10,12 @@ from typing import Any, Dict, List
 @dataclass
 class NamelistEntry:
     name: str
+    base_name: str
     value: Any
     raw_line: str
     decimals: int = 4
+    is_array: bool = False
+    array_index: str = ""
 
 
 @dataclass
@@ -154,7 +157,13 @@ def _parse_assignments(text: str) -> Dict[str, NamelistEntry]:
     matches = list(_assign_re.finditer(text))
 
     for idx, m in enumerate(matches):
-        name = m.group(1).upper()
+        full_name = m.group(1).upper()
+
+        # Extract base name and array index
+        base_name = re.sub(r'\([^)]*\)', '', full_name)
+        array_match = re.search(r'(\([^)]*\))', full_name)
+        array_index = array_match.group(1) if array_match else ""
+        is_array = bool(array_index)
 
         value_start = m.end()
 
@@ -171,11 +180,16 @@ def _parse_assignments(text: str) -> Dict[str, NamelistEntry]:
         value = _parse_value(raw_value)
         decimals = _count_decimals(raw_value)
 
-        entries[name] = NamelistEntry(
-            name=name,
+        entry_key = full_name if is_array else base_name
+
+        entries[entry_key] = NamelistEntry(
+            name=full_name,
+            base_name=base_name,
             value=value,
-            raw_line=f"{name}={raw_value}",
-            decimals=decimals
+            raw_line=f"{full_name}={raw_value}",
+            decimals=decimals,
+            is_array=is_array,
+            array_index=array_index
         )
 
     return entries
