@@ -109,12 +109,33 @@ def render_namelist_view():
                             for param, default_val in available_params.items():
                                 is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
 
-                                col_check, col_idx = st.columns([3, 1])
+                                col_check, col_idx = st.columns([3, 2])
                                 with col_check:
                                     st.checkbox(param, key=f"check_{block_name}_{param}")
                                 if is_array:
                                     with col_idx:
-                                        st.text_input("Idx", value="1", key=f"idx_{block_name}_{param}", label_visibility="collapsed")
+                                        dims = default_val.get('dimensions', 1)
+                                        if dims > 1:
+                                            idx_cols = st.columns(dims)
+                                            idx_values = []
+                                            for i in range(dims):
+                                                with idx_cols[i]:
+                                                    val = st.text_input("", value="1", 
+                                                                 key=f"idx_{block_name}_{param}_dim{i}",
+                                                                 label_visibility="collapsed")
+                                                    # Validate: only integers allowed
+                                                    if val and not val.isdigit():
+                                                        st.error("Integers only")
+                                                        val = "1"
+                                                    idx_values.append(val)
+                                            idx = ','.join(idx_values)
+                                        else:
+                                            idx = st.text_input("", value="1", 
+                                                            key=f"idx_{block_name}_{param}",
+                                                            label_visibility="collapsed")
+                                            if idx and not idx.isdigit():
+                                                st.error("Integers only")
+                                                idx = "1"
 
                             col_pbtn1, col_pbtn2 = st.columns(2)
                             with col_pbtn1:
@@ -123,7 +144,19 @@ def render_namelist_view():
                                         if st.session_state.get(f"check_{block_name}_{param}"):
                                             is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
                                             if is_array:
-                                                idx = st.session_state.get(f"idx_{block_name}_{param}", "1")
+                                                dims = default_val.get('dimensions', 1)
+                                                if dims > 1:
+                                                    idx_values = []
+                                                    for i in range(dims):
+                                                        val = st.session_state.get(f"idx_{block_name}_{param}_dim{i}", "1")
+                                                        if val and not val.isdigit():
+                                                            val = "1"
+                                                        idx_values.append(val)
+                                                    idx = ','.join(idx_values)
+                                                else:
+                                                    idx = st.session_state.get(f"idx_{block_name}_{param}", "1")
+                                                    if idx and not idx.isdigit():
+                                                        idx = "1"
                                                 entry_name = f"{param}({idx})"
                                                 base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
                                             else:
@@ -198,17 +231,17 @@ def render_namelist_view():
                              
                              with val_col:
                                  if isinstance(entry.value, bool):
-                                     new_val = st.checkbox("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                     new_val = st.checkbox(" ", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
                                      entry.value = new_val
                                  elif isinstance(entry.value, (int, float)):
                                      if isinstance(entry.value, int):
-                                         new_val = st.number_input("", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
+                                         new_val = st.number_input(" ", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
                                      else:
                                          decimals = getattr(entry, 'decimals', 4)
-                                         new_val = st.number_input("", value=float(entry.value), key=f"{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
+                                         new_val = st.number_input(" ", value=float(entry.value), key=f"{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
                                      entry.value = new_val
                                  elif isinstance(entry.value, str):
-                                     new_val = st.text_input("", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                     new_val = st.text_input(" ", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
                                      entry.value = new_val
 
     with col_doc:
@@ -221,7 +254,7 @@ def render_namelist_view():
         block_map = {docs.get_block_title(block): block for block in available_blocks}
         
         block_options = ["Select a namelist group"] + list(block_map.keys())
-        selected = st.selectbox("", block_options, key="doc_select")
+        selected = st.selectbox(" ", block_options, key="doc_select")
         
         if selected and selected != "Select a namelist group":
             rst_name = block_map[selected]

@@ -62,6 +62,16 @@ def get_available_blocks(program_type):
     return blocks
 
 
+def parse_csv_line(line):
+    """Parse a CSV line respecting quoted fields.
+    Handles cases like: "NAME","TYPE(:,:)","VALUE"
+    """
+    import csv
+    import io
+    reader = csv.reader(io.StringIO(line))
+    return next(reader, [])
+
+
 def get_block_defaults(block_name):
     rst_file = os.path.join(DOC_DIR, f"{block_name}.rst")
     if not os.path.exists(rst_file):
@@ -76,12 +86,12 @@ def get_block_defaults(block_name):
             in_table = True
             continue
         if in_table and line.strip().startswith('"') and '"' in line:
-            parts = line.split(',')
+            parts = parse_csv_line(line)
             if len(parts) >= 3:
-                raw_name = parts[0].strip().strip('"')
-                name = clean_param_name(raw_name)
-                ftype = parts[1].strip().strip('"').upper()
-                default = parts[2].strip().strip('"')
+                raw_name = parts[0].strip()
+                name = clean_param_name(raw_name).replace("\"","")
+                ftype = parts[1].strip().upper()
+                default = parts[2].strip()
                 if name and ftype:
                     if 'CHARACTER' in ftype:
                         defaults[name] = default.strip("'").strip('"')
@@ -114,6 +124,26 @@ def get_block_title(block_name):
     return block_name
 
 
+def extract_dimension_info(type_str):
+    """Extract dimension info from type string.
+    Returns: (has_dim_pattern, dimensions, dim_pattern)
+    - dimensions: number of dimensions (2 for REAL(:,:))
+    - dim_pattern: original pattern like ":,:" for UI generation
+    """
+    # Only match patterns that look like array dimensions:
+    # - Contains ":" (colon for unspecified dimension)
+    # - Contains "," (comma for multiple dimensions)
+    # - Does NOT match simple type specs like REAL(8) or INTEGER(4)
+    match = re.search(r'\(([^)]+)\)', type_str)
+    if match:
+        dim_str = match.group(1)
+        # Check if this looks like an array dimension pattern
+        if ':' in dim_str or ',' in dim_str:
+            dims = [d.strip() for d in dim_str.split(',')]
+            return True, len(dims), dim_str
+    return False, 0, ''
+
+
 def get_block_params(block_name):
     rst_file = os.path.join(DOC_DIR, f"{block_name}.rst")
     if not os.path.exists(rst_file):
@@ -128,51 +158,65 @@ def get_block_params(block_name):
             in_table = True
             continue
         if in_table and line.strip().startswith('"') and '"' in line:
-            parts = line.split(',')
+            parts = parse_csv_line(line)
             if len(parts) >= 3:
-                raw_name = parts[0].strip().strip('"')
-                name = clean_param_name(raw_name)
-                ftype = parts[1].strip().strip('"').upper()
-                default = parts[2].strip().strip('"')
+                raw_name = parts[0].strip()
+                name = clean_param_name(raw_name).replace("\"","")
+                ftype = parts[1].strip().upper()
+                default = parts[2].strip()
                 is_array = is_array_type(ftype)
+                # Extract dimension info
+                has_dim, dimensions, dim_pattern = extract_dimension_info(ftype)
                 if name and ftype:
                     if 'CHARACTER' in ftype:
                         params[name] = {
                             'value': default.strip("'").strip('"'),
                             'is_array': is_array,
-                            'type': ftype
+                            'type': ftype,
+                            'dimensions': dimensions if has_dim else (1 if is_array else 0),
+                            'dim_pattern': dim_pattern
                         }
                     elif 'LOGICAL' in ftype:
                         params[name] = {
                             'value': default.upper() == '.TRUE.',
                             'is_array': is_array,
-                            'type': ftype
+                            'type': ftype,
+                            'dimensions': dimensions if has_dim else (1 if is_array else 0),
+                            'dim_pattern': dim_pattern
                         }
                     elif 'INTEGER' in ftype:
                         try:
                             params[name] = {
                                 'value': int(default),
                                 'is_array': is_array,
-                                'type': ftype
+                                'type': ftype,
+                                'dimensions': dimensions if has_dim else (1 if is_array else 0),
+                                'dim_pattern': dim_pattern
                             }
                         except:
                             params[name] = {
                                 'value': 0,
                                 'is_array': is_array,
-                                'type': ftype
+                                'type': ftype,
+                                'dimensions': dimensions if has_dim else (1 if is_array else 0),
+                                'dim_pattern': dim_pattern
                             }
                     elif 'REAL' in ftype:
                         try:
                             params[name] = {
                                 'value': float(default),
                                 'is_array': is_array,
-                                'type': ftype
+                                'type': ftype,
+                                'dimensions': dimensions if has_dim else (1 if is_array else 0),
+                                'dim_pattern': dim_pattern
                             }
                         except:
                             params[name] = {
                                 'value': 0.0,
                                 'is_array': is_array,
-                                'type': ftype
+                                'type': ftype,
+                                'dimensions': dimensions if has_dim else (1 if is_array else 0),
+                                'dim_pattern': dim_pattern
                             }
         if in_table and line.strip().startswith('.. include::'):
             in_table = False
