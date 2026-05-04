@@ -175,7 +175,7 @@ def render_editor(blocks, relative_path):
                                             idx_values = []
                                             for i in range(dimensions):
                                                 with idx_cols[i]:
-                                                    val = st.text_input("", value="1", 
+                                                    val = st.text_input(" ", value="1", 
                                                                  key=f"idx_{relative_path}_{block_name}_{param}_dim{i}",
                                                                  label_visibility="collapsed")
                                                     if val.isdigit():
@@ -186,7 +186,7 @@ def render_editor(blocks, relative_path):
                                             idx = ','.join(idx_values)
                                             st.session_state[f"idx_{relative_path}_{block_name}_{param}"] = idx
                                         else:
-                                            idx = st.text_input("", value="1", 
+                                            idx = st.text_input(" ", value="1", 
                                                                  key=f"idx_{relative_path}_{block_name}_{param}", 
                                                                  label_visibility="collapsed")
                                             if not idx.isdigit():

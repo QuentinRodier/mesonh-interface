@@ -120,7 +120,7 @@ def render_namelist_view():
                                             idx_values = []
                                             for i in range(dims):
                                                 with idx_cols[i]:
-                                                    val = st.text_input("", value="1", 
+                                                    val = st.text_input(" ", value="1", 
                                                                  key=f"idx_{block_name}_{param}_dim{i}",
                                                                  label_visibility="collapsed")
                                                     # Validate: only integers allowed
@@ -130,7 +130,7 @@ def render_namelist_view():
                                                     idx_values.append(val)
                                             idx = ','.join(idx_values)
                                         else:
-                                            idx = st.text_input("", value="1", 
+                                            idx = st.text_input(" ", value="1", 
                                                             key=f"idx_{block_name}_{param}",
                                                             label_visibility="collapsed")
                                             if idx and not idx.isdigit():
@@ -202,9 +202,9 @@ def render_namelist_view():
                      for i in range(0, len(entries), pair_count):
                          pair = entries[i:i+pair_count]
                          if delete_mode:
-                             cols = st.columns([1, 1, 3] * len(pair))
+                             cols = st.columns([1, 1, 1] * len(pair))
                          else:
-                             cols = st.columns([1, 3] * len(pair))
+                             cols = st.columns([1, 1] * len(pair))
                          
                          for j, (param_name, entry) in enumerate(pair):
                              base_idx = j * (3 if delete_mode else 2)
