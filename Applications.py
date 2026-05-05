@@ -1,4 +1,5 @@
 import streamlit as st
+from config import EXAMPLES_DIR
 
 st.set_page_config(page_title="Meso-NH Tools", layout="wide")
 
@@ -27,7 +28,7 @@ col3, col4 = st.columns([1, 1])
 
 with col3:
     st.subheader("📚 Catalogue Explorer")
-    st.write("Browse namelists in examples directory")
+    st.write(f"Browse namelists in {EXAMPLES_DIR}")
     
     if st.button("Launch Catalogue Explorer", use_container_width=True):
         st.switch_page("pages/Catalogue_Explorer.py")

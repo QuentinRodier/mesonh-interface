@@ -1,10 +1,6 @@
 import os
 import re
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DOC_DIR = os.path.join(BASE_DIR, "namelists")
-EXAMPLES_DIR = os.path.join(BASE_DIR, "examples")
-EXECUTABLES_DIR = os.path.join(BASE_DIR, "executables_namelists")
+from config import EXAMPLES_DIR, DOC_DIR, EXECUTABLES_DIR
 
 def is_array_type(type_str):
     """Check if parameter type indicates an array."""

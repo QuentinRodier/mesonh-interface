@@ -2,8 +2,8 @@ import streamlit as st
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules import parser, docs
+from config import EXAMPLES_DIR
 
 st.set_page_config(page_title="Workspace", layout="wide")
 
@@ -164,7 +164,7 @@ def render_workspace():
     with st.sidebar:
         st.header("📚 Catalogue")
         
-        workspace_path = st.text_input("Workspace path", value=st.session_state.workspace_path or "examples", key="workspace_path_input")
+        workspace_path = st.text_input("Workspace path", value=st.session_state.workspace_path or EXAMPLES_DIR, key="workspace_path_input")
                 
         if st.button("🔄 Load Workspace"):
             if workspace_path and os.path.isdir(workspace_path):

@@ -4,7 +4,6 @@ import plotly.graph_objects as go
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules import docs
 
 st.set_page_config(page_title='Vertical Levels', layout='wide')

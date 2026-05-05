@@ -2,7 +2,6 @@ import streamlit as st
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from modules import parser, docs, advise
 
 st.set_page_config(page_title="Workspace", layout="wide")
