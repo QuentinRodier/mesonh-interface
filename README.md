@@ -21,13 +21,13 @@ A Streamlit-based web application for editing Meso-NH namelist files. This tool 
 
 1. Clone the repository:
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/QuentinRodier/mesonh-interface.git
    cd mesonh-interface
    ```
 
 2. Create and activate a virtual environment:
    ```bash
-   python -m venv .venv
+   python3 -m venv .venv
    # Windows:
    .venv\Scripts\activate
    # Linux/Mac:
@@ -41,7 +41,7 @@ A Streamlit-based web application for editing Meso-NH namelist files. This tool 
 
 4. Run the first-time setup wizard:
    ```bash
-   mesonh-setup
+   python3 -m config setup
    ```
    This will prompt you for the paths to the Meso-NH CODE and DOC repositories and create a `.env` file.
 
@@ -51,7 +51,7 @@ A Streamlit-based web application for editing Meso-NH namelist files. This tool 
 
 Launch the application:
 ```bash
-streamlit run mesonh-interface/Applications.py
+streamlit run Applications.py
 ```
 
 This will open the application in your web browser. From the home page, you can navigate to:
