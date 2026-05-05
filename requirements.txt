@@ -1,6 +1,5 @@
-streamlit>=1.28.0
-pandas>=2.0.0
-plotly>=5.18.0
-docutils>=0.20.0
-pygments>=2.20.0
-plotly>=5.18.0
+streamlit==1.56.0
+pandas==3.0.2
+plotly==6.7.0
+docutils==0.22.4
+pygments==2.20.0
