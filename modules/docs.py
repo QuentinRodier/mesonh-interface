@@ -6,7 +6,6 @@ DOC_DIR = os.path.join(BASE_DIR, "namelists")
 EXAMPLES_DIR = os.path.join(BASE_DIR, "examples")
 EXECUTABLES_DIR = os.path.join(BASE_DIR, "executables_namelists")
 
-
 def is_array_type(type_str):
     """Check if parameter type indicates an array."""
     type_upper = type_str.upper()
@@ -73,7 +72,7 @@ def parse_csv_line(line):
 
 
 def get_block_defaults(block_name):
-    rst_file = os.path.join(DOC_DIR, f"{block_name}.rst")
+    rst_file = os.path.join(DOC_DIR, f"{block_name}.rst".lower())
     if not os.path.exists(rst_file):
         return {}
     defaults = {}
@@ -113,7 +112,7 @@ def get_block_defaults(block_name):
 
 
 def get_block_title(block_name):
-    rst_file = os.path.join(DOC_DIR, f"{block_name}.rst")
+    rst_file = os.path.join(DOC_DIR, f"{block_name}.rst".lower())
     if not os.path.exists(rst_file):
         return block_name
     with open(rst_file, 'r', encoding='utf-8') as f:
@@ -145,7 +144,7 @@ def extract_dimension_info(type_str):
 
 
 def get_block_params(block_name):
-    rst_file = os.path.join(DOC_DIR, f"{block_name}.rst")
+    rst_file = os.path.join(DOC_DIR, f"{block_name}.rst".lower())
     if not os.path.exists(rst_file):
         return {}
     params = {}
