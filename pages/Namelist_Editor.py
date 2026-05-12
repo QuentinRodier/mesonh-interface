@@ -301,7 +301,7 @@ def render_upload():
     with st.sidebar:
         st.header("")
 
-        uploaded_file = st.file_uploader("Upload namelist", type=['nam'])
+        uploaded_file = st.file_uploader("Upload namelist", type=None)
 
         if uploaded_file is not None:
             if st.session_state.current_file != uploaded_file.name:
