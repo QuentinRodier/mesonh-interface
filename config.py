@@ -17,6 +17,7 @@ def get_mesonh_doc_dir() -> str:
 EXAMPLES_DIR = os.path.join(get_mesonh_code_dir(), "examples")
 DOC_DIR = os.path.join(get_mesonh_doc_dir(), "docs/source/documentation/users_guide/executables_namelists/namelists")
 EXECUTABLES_DIR = os.path.join(get_mesonh_doc_dir(), "docs/source/documentation/users_guide/executables_namelists")
+DOC_CATALOGUE_DIR = os.path.join(get_mesonh_doc_dir(), "docs/source/applications/catalogue")
 
 def setup_wizard():
     """Interactive first-time setup wizard."""

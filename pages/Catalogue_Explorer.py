@@ -3,7 +3,7 @@ import sys
 import os
 
 from modules import parser, docs
-from config import EXAMPLES_DIR
+from config import EXAMPLES_DIR, DOC_CATALOGUE_DIR
 
 st.set_page_config(page_title="Workspace", layout="wide")
 
@@ -100,21 +100,21 @@ def render_editor(blocks, relative_path):
                             st.markdown(f"<div style='padding-top:8px'><b>{param_name}</b></div>", unsafe_allow_html=True)
                         with cols[idx + 1]:
                             if isinstance(entry.value, bool):
-                                st.checkbox("", value=entry.value, disabled=True, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
+                                st.checkbox(" ", value=entry.value, disabled=True, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
                             elif isinstance(entry.value, (int, float)):
                                 if isinstance(entry.value, int):
-                                    st.number_input("", value=entry.value, disabled=True, key=f"{relative_path}_{block_name}_{param_name}", format="%d", label_visibility="collapsed")
+                                    st.number_input(" ", value=entry.value, disabled=True, key=f"{relative_path}_{block_name}_{param_name}", format="%d", label_visibility="collapsed")
                                 else:
                                     decimals = getattr(entry, 'decimals', 4)
-                                    st.number_input("", value=float(entry.value), disabled=True, key=f"{relative_path}_{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
+                                    st.number_input(" ", value=float(entry.value), disabled=True, key=f"{relative_path}_{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
                             elif isinstance(entry.value, str):
-                                st.text_input("", value=entry.value, disabled=True, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
+                                st.text_input(" ", value=entry.value, disabled=True, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
 
     with col_doc:
         st.subheader("📋 User's guide")
         
         block_options = ["<Select a namelist group>"] + list(blocks.keys())
-        selected = st.selectbox("", block_options, key=f"doc_select_{relative_path}")
+        selected = st.selectbox(" ", block_options, key=f"doc_select_{relative_path}")
         
         if selected and selected != "<Select a namelist group>":
             doc_content = docs.find_docs(selected)
@@ -128,20 +128,21 @@ def render_editor(blocks, relative_path):
     with col_doc:
         st.subheader("📁 Catalogue Documentation")
         
-        catalogue_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "catalogue")
+        catalogue_dir = [DOC_CATALOGUE_DIR + "/IDEAL"]
+        catalogue_dir.append(DOC_CATALOGUE_DIR + "/REAL")
+        catalogue_dir.append(DOC_CATALOGUE_DIR + "/TECHNICAL")
         cases = []
-        
-        if os.path.exists(catalogue_dir):
-            for item in os.listdir(catalogue_dir):
-                case_path = os.path.join(catalogue_dir, item)
-                if os.path.isdir(case_path):
-                    rst_file = os.path.join(case_path, "case_description.rst")
-                    if os.path.exists(rst_file):
-                        cases.append((item, rst_file))
-        
+        for dirs in catalogue_dir:
+            if os.path.exists(dirs):
+                for item in os.listdir(dirs):
+                    case_path = os.path.join(dirs, item)
+                    if os.path.isdir(case_path):
+                        rst_file = os.path.join(case_path, "case_description.rst")
+                        if os.path.exists(rst_file):
+                            cases.append((item, rst_file))
         if cases:
             case_names = ["<Select a case>"] + [name for name, _ in cases]
-            selected_case = st.selectbox("", case_names, key=f"case_select_{relative_path}")
+            selected_case = st.selectbox(" ", case_names, key=f"case_select_{relative_path}")
             
             if selected_case and selected_case != "<Select a case>":
                 case_dict = dict(cases)
@@ -295,7 +296,7 @@ def render_workspace():
             st.header("⚙️ Settings")
             
             st.checkbox("Show empty blocks", key="show_empty", value=False)
-            st.checkbox("Expand all blocks", key="expand_all", value=True)  
+            st.checkbox("Expand all blocks", key="expand_all")  
             
             editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
             pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
