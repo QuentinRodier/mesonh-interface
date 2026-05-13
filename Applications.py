@@ -39,3 +39,14 @@ with col4:
     
     if st.button("Launch Vertical Levels", use_container_width=True):
         st.switch_page("pages/Vertical_Levels.py")
+
+st.divider()
+
+col5, col6 = st.columns([1, 1])
+
+with col5:
+    st.subheader("🌐 Horizontal Grids")
+    st.write("Configure horizontal grid with interactive map")
+    
+    if st.button("Launch Horizontal Grids", use_container_width=True):
+        st.switch_page("pages/Horizontal_Grids.py")

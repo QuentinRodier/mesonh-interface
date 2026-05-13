@@ -75,24 +75,23 @@ You can also set these as system environment variables instead of using `.env`.
 
 ```
 mesonh-interface/
-├── pyproject.toml              # Project metadata and dependencies
 ├── README.md                   # This file
+├── requirements.txt            # Dependencies
 ├── .env.example                # Template for environment variables
 ├── .env                        # Your local configuration (created by setup)
-├── mesonh-interface/
+├── Applications.py             # Main entry point
+├── config.py                   # Configuration management
+├── modules/
 │   ├── __init__.py
-│   ├── config.py               # Configuration management
-│   ├── Applications.py         # Main entry point
-│   ├── modules/
-│   │   ├── __init__.py
-│   │   ├── docs.py             # Documentation parsing
-│   │   ├── parser.py           # Namelist file parser
-│   │   └── advise.py           # Parameter advice/validation
-│   └── pages/
-│       ├── __init__.py
-│       ├── Namelist_Editor.py  # Single file editor
-│       ├── Workspace.py        # Multi-file workspace
-│       ├── Catalogue_Explorer.py # Browse examples
-│       └── Vertical_Levels.py  # Vertical grid configurator
+│   ├── docs.py             # Documentation parsing
+│   ├── parser.py           # Namelist file parser
+│   └── advise.py           # Parameter advice/validation
+└── pages/
+    ├── __init__.py
+    ├── Namelist_Editor.py  # Single file editor
+    ├── Workspace.py        # Multi-file workspace
+    ├── Catalogue_Explorer.py # Browse examples
+    ├── Vertical_Levels.py  # Vertical grid configurator
+    └── Horizontal_Grids.py # Horizontal grids configurator
 └── (external repos referenced via env vars, not included)
 ```
