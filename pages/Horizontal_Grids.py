@@ -77,6 +77,11 @@ for key in ('map_center', 'map_zoom'):
     if key not in st.session_state:
         st.session_state[key] = None
 
+if 'auto_squared' not in st.session_state:
+    st.session_state.auto_squared = True
+if 'square_domain' not in st.session_state:
+    st.session_state.square_domain = False
+
 st.title("🌐 Horizontal Grids")
 
 needs_rerun = False
@@ -138,6 +143,18 @@ with col_ctrl:
         new_njmax = st.number_input("NJMAX", value=d1['njmax'], min_value=1, step=1)
         new_xdeltay = st.number_input("XDELTAY (m)", value=d1['xdeltay'], min_value=1, step=100)
 
+    if st.session_state.auto_squared:
+        if new_xdeltax != d1['xdeltax']:
+            new_xdeltay = new_xdeltax
+        elif new_xdeltay != d1['xdeltay']:
+            new_xdeltax = new_xdeltay
+
+    if st.session_state.square_domain:
+        if new_nimax != d1['nimax']:
+            new_njmax = new_nimax
+        elif new_njmax != d1['njmax']:
+            new_nimax = new_njmax
+
     changed = (
         new_clat != d1['center_lat'] or new_clon != d1['center_lon'] or
         new_nimax != d1['nimax'] or new_njmax != d1['njmax'] or
@@ -187,6 +204,9 @@ with col_ctrl:
             new_id = max(p['id'] for p in domains) + 1
             d = make_child(new_id, 1)
             p = domains[0]
+            if st.session_state.auto_center:
+                d['ixor'] = max(0, (p['nimax'] - d['ixsize']) // 2)
+                d['iyor'] = max(0, (p['njmax'] - d['iysize']) // 2)
             sw, ne = compute_child_bounds(p, d['ixor'], d['iyor'],
                                           d['ixsize'], d['iysize'],
                                           d['ixratio'], d['iyratio'])
@@ -225,15 +245,38 @@ if len(domains) > 1:
                 d['parent'] = parent_id
                 d['color'] = st.color_picker("Border color", d['color'], key=f"color_{d['id']}")
 
+                for ratio_key in (f"ixratio_{d['id']}", f"iyratio_{d['id']}"):
+                    if ratio_key not in st.session_state:
+                        st.session_state[ratio_key] = d['ixratio'] if 'ixratio' in ratio_key else d['iyratio']
+                for size_key in (f"ixsize_{d['id']}", f"iysize_{d['id']}"):
+                    if size_key not in st.session_state:
+                        st.session_state[size_key] = d['ixsize'] if 'ixsize' in size_key else d['iysize']
+
+                if st.session_state.auto_squared:
+                    widget_ixratio = st.session_state.get(f"ixratio_{d['id']}", d['ixratio'])
+                    widget_iyratio = st.session_state.get(f"iyratio_{d['id']}", d['iyratio'])
+                    if widget_ixratio != d['ixratio']:
+                        st.session_state[f"iyratio_{d['id']}"] = widget_ixratio
+                    elif widget_iyratio != d['iyratio']:
+                        st.session_state[f"ixratio_{d['id']}"] = widget_iyratio
+
+                if st.session_state.square_domain:
+                    widget_ixsize = st.session_state.get(f"ixsize_{d['id']}", d['ixsize'])
+                    widget_iysize = st.session_state.get(f"iysize_{d['id']}", d['iysize'])
+                    if widget_ixsize != d['ixsize']:
+                        st.session_state[f"iysize_{d['id']}"] = widget_ixsize
+                    elif widget_iysize != d['iysize']:
+                        st.session_state[f"ixsize_{d['id']}"] = widget_iysize
+
                 col_1, col_2 = st.columns(2)
                 with col_1:
                     d['ixor'] = st.number_input("IXOR", value=d['ixor'], min_value=0, step=1, key=f"ixor_{d['id']}")
-                    d['ixratio'] = st.number_input("IXRATIO", value=d['ixratio'], min_value=1, step=1, key=f"ixratio_{d['id']}")
-                    d['ixsize'] = st.number_input("IXSIZE", value=d['ixsize'], min_value=1, step=1, key=f"ixsize_{d['id']}")
+                    d['ixratio'] = st.number_input("IXRATIO", min_value=1, step=1, key=f"ixratio_{d['id']}")
+                    d['ixsize'] = st.number_input("IXSIZE", min_value=1, step=1, key=f"ixsize_{d['id']}")
                 with col_2:
                     d['iyor'] = st.number_input("IYOR", value=d['iyor'], min_value=0, step=1, key=f"iyor_{d['id']}")
-                    d['iyratio'] = st.number_input("IYRATIO", value=d['iyratio'], min_value=1, step=1, key=f"iyratio_{d['id']}")
-                    d['iysize'] = st.number_input("IYSIZE", value=d['iysize'], min_value=1, step=1, key=f"iysize_{d['id']}")
+                    d['iyratio'] = st.number_input("IYRATIO", min_value=1, step=1, key=f"iyratio_{d['id']}")
+                    d['iysize'] = st.number_input("IYSIZE", min_value=1, step=1, key=f"iysize_{d['id']}")
 
                 child_nimax = d['ixsize'] * d['ixratio']
                 child_njmax = d['iysize'] * d['iyratio']
@@ -262,6 +305,19 @@ if len(domains) > 1:
             break
 
 with st.sidebar:
+    st.session_state.auto_center = st.checkbox(
+        "Auto-center new child domains",
+        value=st.session_state.get('auto_center', True),
+    )
+    st.session_state.auto_squared = st.checkbox(
+        "Auto-squared mesh",
+        value=st.session_state.get('auto_squared', True),
+    )
+    st.session_state.square_domain = st.checkbox(
+        "Square domain",
+        value=st.session_state.get('square_domain', False),
+    )
+    st.divider()
     st.markdown("**Legend**")
     for d in st.session_state.domains:
         if d['id'] == 1:
