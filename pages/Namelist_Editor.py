@@ -2,7 +2,7 @@ import streamlit as st
 import sys
 import os
 
-from modules import parser, docs, advise
+from modules import parser, docs, advise, utils
 
 st.set_page_config(page_title="Namelist Editor", layout="wide")
 
@@ -188,6 +188,24 @@ def render_namelist_view():
                                     st.rerun()
                         else:
                             st.caption("No params to add")
+                if block_name == "NAM_VER_GRID":
+                    copied_data = utils.get_copied_params()
+                    if copied_data:
+                        if st.button("📋", key=f"paste_{block_name}", help="Paste NAM" \
+                        "VER_GRID params from clipboard copied in Vertical Levels page"):
+                            for entry_name, entry in block.entries.items():
+                                for target_key, new_val in copied_data.items():
+                                    if entry.base_name == target_key or entry.name == target_key:
+                                        entry.value = new_val
+                                        entry.raw_line = f"{entry.name} = {new_val}"
+                                        potential_keys = [
+                                            f"{block_name}_{entry.base_name}", 
+                                            f"{block_name}_{entry.name}"
+                                        ]
+                                        for k in potential_keys:
+                                            if k in st.session_state:
+                                                st.session_state[k] = new_val
+                            st.rerun()
             with col_block:
                  with st.expander(f"&{block_name} ({len(block.entries)})", expanded=st.session_state.expand_all):
                      if not block.entries:

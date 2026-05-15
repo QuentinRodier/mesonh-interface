@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import sys
 import os
 
-from modules import docs
+from modules import docs, utils
 
 st.set_page_config(page_title='Vertical Levels', layout='wide')
 
@@ -90,6 +90,19 @@ with st.sidebar:
                 if 'manual_levels' in st.session_state:
                     del st.session_state.manual_levels
                 st.rerun()
+
+    if st.button("📋 Copy Parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_VER_GRID to clipboard. Paste it in Namelist Editor or Workspace"):
+        # Mapping entre les variables de l'UI et les clés réelles de la namelist
+        params_to_copy = {
+            'NKMAX': KMAX,
+            'ZZMAX_STRGRD': ZMAX,
+            'ZDZGRD': ZGRD,
+            'ZDZTOP': ZTOP,
+            'ZDSTRGRD': SGRD,
+            'ZSTRTOP': STOP
+        }
+        utils.save_copied_params(params_to_copy)
+        st.success("Parameters copied!")
 
     st.divider()
     st.header('Settings')
