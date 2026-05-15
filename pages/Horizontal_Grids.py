@@ -54,6 +54,17 @@ def make_child(domain_id, parent_id, color=None):
         'sw': None, 'ne': None,
     }
 
+def get_domain_dimensions(domain):
+    """Get the effective NIMAX and NJMAX for any domain (top-level or nested child)."""
+    if domain['parent'] is None:
+        # Top-level domain has nimax and njmax directly
+        return domain['nimax'], domain['njmax']
+    else:
+        # Child domain: compute from ixsize, iysize, ixratio, iyratio
+        nimax = domain['ixsize'] * domain['ixratio']
+        njmax = domain['iysize'] * domain['iyratio']
+        return nimax, njmax
+
 def delete_domain(domain_id):
     domains = st.session_state.domains
     to_remove = {domain_id}
@@ -198,7 +209,7 @@ with col_ctrl:
             st.rerun()
         except (KeyError, IndexError, TypeError):
             pass
-
+    st.space(size="small")
     if len(domains) < MAX_DOMAINS:
         if st.button("+ Add domain", use_container_width=True, type='secondary'):
             new_id = max(p['id'] for p in domains) + 1
@@ -281,6 +292,16 @@ if len(domains) > 1:
                 child_nimax = d['ixsize'] * d['ixratio']
                 child_njmax = d['iysize'] * d['iyratio']
                 parent = next(p for p in domains if p['id'] == d['parent'])
+                
+                # Get effective dimensions of parent domain
+                parent_nimax, parent_njmax = get_domain_dimensions(parent)
+                
+                # Check if child domain is within parent domain
+                if d['ixor'] + d['ixsize'] > parent_nimax or d['iyor'] + d['iysize'] > parent_njmax:
+                    st.error(f"Child domain {d['id']} exceeds parent domain {d['parent']} boundaries! "
+                             f"Check IXOR+IXSIZE ({d['ixor'] + d['ixsize']}) <= NIMAX ({parent_nimax}) "
+                             f"and IYOR+IYSIZE ({d['iyor'] + d['iysize']}) <= NJMAX ({parent_njmax}).")
+
                 child_xdeltax = parent['xdeltax'] / d['ixratio']
                 child_xdeltay = parent['xdeltay'] / d['iyratio']
                 st.caption(f"NIMAX={child_nimax}, NJMAX={child_njmax}, "
@@ -306,11 +327,11 @@ if len(domains) > 1:
 
 with st.sidebar:
     st.session_state.auto_center = st.checkbox(
-        "Auto-center new child domains",
+        "Center child domain",
         value=st.session_state.get('auto_center', True),
     )
     st.session_state.auto_squared = st.checkbox(
-        "Auto-squared mesh",
+        r"Square mesh $\Delta_x = \Delta_y$", 
         value=st.session_state.get('auto_squared', True),
     )
     st.session_state.square_domain = st.checkbox(
@@ -321,7 +342,7 @@ with st.sidebar:
     st.markdown("**Legend**")
     for d in st.session_state.domains:
         if d['id'] == 1:
-            label = f"D{d['id']} — {d['nimax']}×{d['njmax']} pts — {d['xdeltax']:.0f}m × {d['xdeltay']:.0f}m"
+            label = f"D{d['id']} — Points: {d['nimax']}×{d['njmax']} — Resolution: {d['xdeltax']:.0f}m × {d['xdeltay']:.0f}m"
         else:
             parent = next(p for p in st.session_state.domains if p['id'] == d['parent'])
             n = d['ixsize'] * d['ixratio']
