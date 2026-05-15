@@ -2,7 +2,7 @@ import streamlit as st
 import sys
 import os
 
-from modules import parser, docs, advise
+from modules import parser, docs, advise, utils
 
 st.set_page_config(page_title="Workspace", layout="wide")
 
@@ -35,6 +35,41 @@ if 'doc_height' not in st.session_state:
 
 
 DOC_DIR = docs.DOC_DIR
+
+def paste_nam_ver_grid(block, block_name, relative_path):
+    copied_data = utils.get_copied_params()
+    if not copied_data:
+        return
+
+    matched_keys = set()
+
+    for entry_name, entry in block.entries.items():
+        for target_key, new_val in copied_data.items():
+            if entry.base_name == target_key or entry.name == target_key:
+                entry.value = new_val
+                entry.raw_line = f"{entry.name} = {new_val}"
+                matched_keys.add(target_key)
+                potential_keys = [
+                    f"{relative_path}_{block_name}_{entry.base_name}",
+                    f"{relative_path}_{block_name}_{entry.name}"
+                ]
+                for k in potential_keys:
+                    if k in st.session_state:
+                        st.session_state[k] = new_val
+
+    block_params = docs.get_block_params(block_name)
+    for target_key, new_val in copied_data.items():
+        if target_key not in matched_keys:
+            param_def = block_params.get(target_key, {})
+            is_array = param_def.get("is_array", False)
+            block.entries[target_key] = parser.NamelistEntry(
+                name=target_key,
+                base_name=target_key,
+                value=new_val,
+                raw_line=f"{target_key} = {new_val}",
+                is_array=is_array,
+                array_index=""
+            )
 
 def is_default_value(block_name, param_name, current_value):
     defaults = docs.get_block_defaults(block_name)
@@ -248,6 +283,15 @@ def render_editor(blocks, relative_path):
                                     st.rerun()
                         else:
                             st.caption("No params to add")
+                    if block_name == "NAM_VER_GRID":
+                        copied_data = utils.get_copied_params()
+                        if copied_data:
+                            st.button(
+                                "📋", key=f"paste_{block_name}",
+                                help="Paste NAM_VER_GRID params from clipboard copied in Vertical Levels page",
+                                on_click=paste_nam_ver_grid,
+                                args=(block, block_name, relative_path)
+                            )
 
     with col_doc:
         st.subheader("📋 User's guide")

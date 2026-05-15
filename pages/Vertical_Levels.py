@@ -98,8 +98,9 @@ with st.sidebar:
             'ZZMAX_STRGRD': ZMAX,
             'ZDZGRD': ZGRD,
             'ZDZTOP': ZTOP,
-            'ZDSTRGRD': SGRD,
-            'ZSTRTOP': STOP
+            'ZSTRGRD': SGRD,
+            'ZSTRTOP': STOP,
+            'YZGRID_TYPE': 'FUNCTN'
         }
         utils.save_copied_params(params_to_copy)
         st.success("Parameters copied!")
