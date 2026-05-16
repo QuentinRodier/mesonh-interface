@@ -77,9 +77,7 @@ def render_namelist_view():
     if not st.session_state.namelist_blocks:
         return
 
-    file_content = parser.write_namelist(st.session_state.namelist_blocks)
-    st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain")
-
+    download_placeholder = st.empty()
     st.divider()
 
     editor_width = st.session_state.get('editor_width', 2)
@@ -307,6 +305,10 @@ def render_namelist_view():
         else:
             st.info("Load a namelist to run Advise checks")
 
+    file_content = parser.write_namelist(st.session_state.namelist_blocks)
+    with download_placeholder:
+        st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain")
+
 
 def render_upload():
     with st.sidebar:
@@ -314,7 +316,7 @@ def render_upload():
 
         uploaded_file = st.file_uploader("Upload namelist", type=None)
 
-        if uploaded_file is not None:
+        if uploaded_file is not None and not st.session_state.get('_upload_processed', False):
             content = uploaded_file.getvalue().decode("utf-8")
             blocks = parser.parse_namelist(content)
 
@@ -322,9 +324,12 @@ def render_upload():
                 st.session_state.upload_ver = st.session_state.get('upload_ver', 0) + 1
                 st.session_state.namelist_blocks = blocks
                 st.session_state.current_file = uploaded_file.name
+                st.session_state._upload_processed = True
                 st.success(f"Loaded: {uploaded_file.name}")
             else:
                 st.error("Could not parse")
+        elif uploaded_file is None:
+            st.session_state._upload_processed = False
 
         st.divider()
         st.header("⚙️ Settings")
