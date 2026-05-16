@@ -10,6 +10,8 @@ if 'namelist_blocks' not in st.session_state:
     st.session_state.namelist_blocks = {}
 if 'current_file' not in st.session_state:
     st.session_state.current_file = None
+if 'upload_ver' not in st.session_state:
+    st.session_state.upload_ver = 0
 if 'show_empty' not in st.session_state:
     st.session_state.show_empty = False
 if 'expand_all' not in st.session_state:
@@ -48,9 +50,10 @@ def paste_nam_ver_grid(block, block_name):
                 entry.value = new_val
                 entry.raw_line = f"{entry.name} = {new_val}"
                 matched_keys.add(target_key)
+                ver = st.session_state.get('upload_ver', 0)
                 potential_keys = [
-                    f"{block_name}_{entry.base_name}",
-                    f"{block_name}_{entry.name}"
+                    f"{block_name}_{entry.base_name}_{ver}",
+                    f"{block_name}_{entry.name}_{ver}"
                 ]
                 for k in potential_keys:
                     if k in st.session_state:
@@ -69,48 +72,6 @@ def paste_nam_ver_grid(block, block_name):
                 is_array=is_array,
                 array_index=""
             )
-
-def save_previous_state():
-    blocks = st.session_state.namelist_blocks
-    previous = {}
-    for name, block in blocks.items():
-        entries = {}
-        for param_name, entry in block.entries.items():
-            entries[param_name] = {
-                'name': entry.name,
-                'value': entry.value,
-                'raw_line': entry.raw_line,
-                'decimals': entry.decimals,
-                'base_name': getattr(entry, 'base_name', entry.name),
-                'is_array': getattr(entry, 'is_array', False),
-                'array_index': getattr(entry, 'array_index', '')
-            }
-        previous[name] = {'entries': entries, 'raw_lines': list(block.raw_lines)}
-    st.session_state.previous_state = previous
-
-
-def undo():
-    if st.session_state.previous_state:
-        blocks = {}
-        for name, data in st.session_state.previous_state.items():
-            block = parser.NamelistBlock(name=name)
-            block.entries = {}
-            for param_name, entry_data in data['entries'].items():
-                block.entries[param_name] = parser.NamelistEntry(
-                    name=entry_data['name'],
-                    base_name=entry_data.get('base_name', entry_data['name']),
-                    value=entry_data['value'],
-                    raw_line=entry_data['raw_line'],
-                    decimals=entry_data.get('decimals', 4),
-                    is_array=entry_data.get('is_array', False),
-                    array_index=entry_data.get('array_index', '')
-                )
-            block.raw_lines = data['raw_lines']
-            blocks[name] = block
-        st.session_state.namelist_blocks = blocks
-        st.session_state.previous_state = None
-        st.rerun()
-
 
 def render_namelist_view():
     if not st.session_state.namelist_blocks:
@@ -273,18 +234,19 @@ def render_namelist_view():
                                      unsafe_allow_html=True)
                              
                              with val_col:
+                                 ver = st.session_state.get('upload_ver', 0)
                                  if isinstance(entry.value, bool):
-                                     new_val = st.checkbox(" ", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                     new_val = st.checkbox(" ", value=entry.value, key=f"{block_name}_{param_name}_{ver}", label_visibility="collapsed")
                                      entry.value = new_val
                                  elif isinstance(entry.value, (int, float)):
                                      if isinstance(entry.value, int):
-                                         new_val = st.number_input(" ", value=entry.value, key=f"{block_name}_{param_name}", format="%d", label_visibility="collapsed")
+                                         new_val = st.number_input(" ", value=entry.value, key=f"{block_name}_{param_name}_{ver}", format="%d", label_visibility="collapsed")
                                      else:
                                          decimals = getattr(entry, 'decimals', 4)
-                                         new_val = st.number_input(" ", value=float(entry.value), key=f"{block_name}_{param_name}", format=f"%.{decimals}f", label_visibility="collapsed")
+                                         new_val = st.number_input(" ", value=float(entry.value), key=f"{block_name}_{param_name}_{ver}", format=f"%.{decimals}f", label_visibility="collapsed")
                                      entry.value = new_val
                                  elif isinstance(entry.value, str):
-                                     new_val = st.text_input(" ", value=entry.value, key=f"{block_name}_{param_name}", label_visibility="collapsed")
+                                     new_val = st.text_input(" ", value=entry.value, key=f"{block_name}_{param_name}_{ver}", label_visibility="collapsed")
                                      entry.value = new_val
 
     with col_doc:
@@ -348,18 +310,20 @@ def render_upload():
         uploaded_file = st.file_uploader("Upload namelist", type=None)
 
         if uploaded_file is not None:
-            if st.session_state.current_file != uploaded_file.name:
-                content = uploaded_file.getvalue().decode("utf-8")
-                blocks = parser.parse_namelist(content)
+            print("Uploaded!")
+            print(uploaded_file.name)
+            print(st.session_state.current_file)
+            #if st.session_state.current_file != uploaded_file.name:
+            content = uploaded_file.getvalue().decode("utf-8")
+            blocks = parser.parse_namelist(content)
 
-                if blocks:
-                    st.session_state.namelist_blocks = blocks
-                    st.session_state.current_file = uploaded_file.name
-                    st.session_state.previous_state = None
-                    save_previous_state()
-                    st.success(f"Loaded: {uploaded_file.name}")
-                else:
-                    st.error("Could not parse")
+            if blocks:
+                st.session_state.upload_ver = st.session_state.get('upload_ver', 0) + 1
+                st.session_state.namelist_blocks = blocks
+                st.session_state.current_file = uploaded_file.name
+                st.success(f"Loaded: {uploaded_file.name}")
+            else:
+                st.error("Could not parse")
 
         st.divider()
         st.header("⚙️ Settings")
