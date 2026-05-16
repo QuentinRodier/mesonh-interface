@@ -66,6 +66,24 @@ def get_domain_dimensions(domain):
         njmax = domain['iysize'] * domain['idyratio']
         return nimax, njmax
 
+def is_factor_235(n):
+    while n % 2 == 0:
+        n //= 2
+    while n % 3 == 0:
+        n //= 3
+    while n % 5 == 0:
+        n //= 5
+    return n == 1
+
+def nearest_factor_235(n):
+    prev = n - 1
+    while prev >= 1 and not is_factor_235(prev):
+        prev -= 1
+    next_ = n + 1
+    while not is_factor_235(next_):
+        next_ += 1
+    return prev, next_
+
 def delete_domain(domain_id):
     domains = st.session_state.domains
     to_remove = {domain_id}
@@ -148,11 +166,17 @@ with col_ctrl:
     col_a, col_b = st.columns(2)
     with col_a:
         new_clat = st.number_input("Center latitude", value=d1['center_lat'], format="%.6f", help="XLATCEN: latitude of the center of domain 1 (in decimals)")
-        new_nimax = st.number_input("NIMAX", value=d1['nimax'], min_value=1, step=1, help="NIMAX: number of physical points in east-west direction")
+        new_nimax = st.number_input("NIMAX", value=d1['nimax'], min_value=1, step=1, help="NIMAX: number of physical points in east-west direction. Must only be composed of factors 2, 3, and 5.")
+        if not is_factor_235(new_nimax):
+            prev, next_ = nearest_factor_235(new_nimax)
+            st.warning(f"NIMAX must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
         new_xdeltax = st.number_input("XDX (m)", value=d1['xdeltax'], min_value=0.00001, step=100.0, format="%.4f", help=r"XDX (or $\Delta_x$): size of the mesh along the east-west direction (in meters)")
     with col_b:
         new_clon = st.number_input("Center longitude", value=d1['center_lon'], format="%.6f", help="XLONCEN: longitude of the center of domain 1 (in decimals)")
-        new_njmax = st.number_input("NJMAX", value=d1['njmax'], min_value=1, step=1, help="NJMAX: number of physical points in south-north direction")
+        new_njmax = st.number_input("NJMAX", value=d1['njmax'], min_value=1, step=1, help="NJMAX: number of physical points in south-north direction. Must only be composed of factors 2, 3, and 5.")
+        if not is_factor_235(new_njmax):
+            prev, next_ = nearest_factor_235(new_njmax)
+            st.warning(f"NJMAX must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
         new_xdeltay = st.number_input("XDY (m)", value=d1['xdeltay'], min_value=0.00001, step=100.0, format="%.4f", help=r"XDY (or $\Delta_y$): size of the mesh along the south-north direction (in meters)")
 
     if st.button("📋 Copy parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_CONF_PROJ_GRID to clipboard. Paste it in Namelist Editor or Workspace"):
@@ -298,10 +322,16 @@ if len(domains) > 1:
                     d['ixor'] = st.number_input("IXOR", value=d['ixor'], min_value=0, step=1, key=f"ixor_{d['id']}", help="IXOR: first point I index, according to the parent grid, left to and out of the new physical domain.")
                     d['idxratio'] = st.number_input("IDXRATIO", min_value=1, step=1, key=f"idxratio_{d['id']}", help="IDXRATIO: resolution factor in east-west direction between the parent grid and the new grid. Must only be factor of 2, 3 or 5")
                     d['ixsize'] = st.number_input("IXSIZE", min_value=1, step=1, key=f"ixsize_{d['id']}", help="IXSIZE: number of grid points in east-west direction, according to the parent grid, recovered by the new domain. Must only be factor of 2, 3 or 5")
+                    if not is_factor_235(d['ixsize']):
+                        prev, next_ = nearest_factor_235(d['ixsize'])
+                        st.warning(f"IXSIZE must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
                 with col_2:
                     d['iyor'] = st.number_input("IYOR", value=d['iyor'], min_value=0, step=1, key=f"iyor_{d['id']}", help="IYOR: first point J index, according to the parent grid, under and out of the new physical domain.")
                     d['idyratio'] = st.number_input("IDYRATIO", min_value=1, step=1, key=f"idyratio_{d['id']}", help="IDYRATIO: resolution factor in south-north direction between the parent grid and the new grid. Must only be factor of 2, 3 or 5")
                     d['iysize'] = st.number_input("IYSIZE", min_value=1, step=1, key=f"iysize_{d['id']}", help="IYSIZE: number of grid points in south-north direction, according to the parent grid, recovered by the new domain. Must only be factor of 2, 3 or 5")
+                    if not is_factor_235(d['iysize']):
+                        prev, next_ = nearest_factor_235(d['iysize'])
+                        st.warning(f"IYSIZE must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
 
                 child_nimax = d['ixsize'] * d['idxratio']
                 child_njmax = d['iysize'] * d['idyratio']
