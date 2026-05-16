@@ -123,13 +123,23 @@ with col_map:
         location=st.session_state.map_center or DEFAULT_CENTER,
         zoom_start=st.session_state.map_zoom or 5,
         control_scale=True,
+        tiles='OpenStreetMap',
+        name='Street Map',
     )
+    folium.TileLayer(
+        tiles='https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        name='orography',
+        attr='Map data: © OpenTopoMap contributors',
+        max_zoom=17,
+        control_scale=True
+    ).add_to(m)
+    folium.LayerControl().add_to(m)
 
     for d in st.session_state.domains:
         bounds = get_bounds(d)
         folium.Rectangle(
             bounds=bounds, color=d['color'], weight=3, fill=True, fillOpacity=0.1,
-            tooltip=f"Domain {d['id']}",
+            tooltip=f"D{d['id']} - {d['nimax']}×{d['njmax']} pts - &Delta;<sub>x</sub>={d['xdeltax']:.0f}m × &Delta;<sub>y</sub>={d['xdeltay']:.0f}m",
         ).add_to(m)
 
         center = [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2]
