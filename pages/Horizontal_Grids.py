@@ -23,7 +23,7 @@ def compute_domain1_bounds(center_lat, center_lon, nimax, njmax, xdeltax, xdelta
     half_h = _DEG_PER_M * njmax * xdeltay / 2
     return [center_lat - half_h, center_lon - half_w], [center_lat + half_h, center_lon + half_w]
 
-def compute_child_bounds(parent, ixor, iyor, ixsize, iysize, ixratio, iyratio):
+def compute_child_bounds(parent, ixor, iyor, ixsize, iysize, idxratio, idyratio):
     p_sw = parent['sw']
     p_xdeltax = parent['xdeltax']
     p_xdeltay = parent['xdeltay']
@@ -42,14 +42,14 @@ def compute_child_bounds(parent, ixor, iyor, ixsize, iysize, ixratio, iyratio):
 def make_domain1():
     return {
         'id': 1, 'center_lat': DEFAULT_CENTER[0], 'center_lon': DEFAULT_CENTER[1],
-        'nimax': 500, 'njmax': 500, 'xdeltax': 1300, 'xdeltay': 1300,
+        'nimax': 500, 'njmax': 500, 'xdeltax': 1300.0, 'xdeltay': 1300.0,
         'color': DOMAIN_COLORS[0], 'parent': None, 'sw': None, 'ne': None,
     }
 
 def make_child(domain_id, parent_id, color=None):
     return {
         'id': domain_id, 'parent': parent_id,
-        'ixor': 5, 'iyor': 5, 'ixratio': 2, 'iyratio': 2, 'ixsize': 200, 'iysize': 200,
+        'ixor': 5, 'iyor': 5, 'idxratio': 2, 'idyratio': 2, 'ixsize': 200, 'iysize': 200,
         'color': color or DOMAIN_COLORS[(domain_id - 1) % len(DOMAIN_COLORS)],
         'sw': None, 'ne': None,
     }
@@ -60,9 +60,9 @@ def get_domain_dimensions(domain):
         # Top-level domain has nimax and njmax directly
         return domain['nimax'], domain['njmax']
     else:
-        # Child domain: compute from ixsize, iysize, ixratio, iyratio
-        nimax = domain['ixsize'] * domain['ixratio']
-        njmax = domain['iysize'] * domain['iyratio']
+        # Child domain: compute from ixsize, iysize, idxratio, idyratio
+        nimax = domain['ixsize'] * domain['idxratio']
+        njmax = domain['iysize'] * domain['idyratio']
         return nimax, njmax
 
 def delete_domain(domain_id):
@@ -146,13 +146,13 @@ with col_ctrl:
     new_color = st.color_picker("Border color", d1['color'], key="color_1")
     col_a, col_b = st.columns(2)
     with col_a:
-        new_clat = st.number_input("Center latitude", value=d1['center_lat'], format="%.4f")
-        new_nimax = st.number_input("NIMAX", value=d1['nimax'], min_value=1, step=1)
-        new_xdeltax = st.number_input("XDELTAX (m)", value=d1['xdeltax'], min_value=1, step=100)
+        new_clat = st.number_input("Center latitude", value=d1['center_lat'], format="%.6f", help="XLATCEN: latitude of the center of domain 1 (in decimals)")
+        new_nimax = st.number_input("NIMAX", value=d1['nimax'], min_value=1, step=1, help="NIMAX: number of physical points in east-west direction")
+        new_xdeltax = st.number_input("XDELTAX (m)", value=d1['xdeltax'], min_value=0.00001, step=100.0, format="%.4f", help="XDELTAX: size of the mesh along the east-west direction (in meters)")
     with col_b:
-        new_clon = st.number_input("Center longitude", value=d1['center_lon'], format="%.4f")
-        new_njmax = st.number_input("NJMAX", value=d1['njmax'], min_value=1, step=1)
-        new_xdeltay = st.number_input("XDELTAY (m)", value=d1['xdeltay'], min_value=1, step=100)
+        new_clon = st.number_input("Center longitude", value=d1['center_lon'], format="%.6f", help="XLONCEN: longitude of the center of domain 1 (in decimals)")
+        new_njmax = st.number_input("NJMAX", value=d1['njmax'], min_value=1, step=1, help="NJMAX: number of physical points in south-north direction")
+        new_xdeltay = st.number_input("XDELTAY (m)", value=d1['xdeltay'], min_value=0.00001, step=100.0, format="%.4f", help="XDELTAY: size of the mesh along the south-north direction (in meters)")
 
     if st.session_state.auto_squared:
         if new_xdeltax != d1['xdeltax']:
@@ -220,7 +220,7 @@ with col_ctrl:
                 d['iyor'] = max(0, (p['njmax'] - d['iysize']) // 2)
             sw, ne = compute_child_bounds(p, d['ixor'], d['iyor'],
                                           d['ixsize'], d['iysize'],
-                                          d['ixratio'], d['iyratio'])
+                                          d['idxratio'], d['idyratio'])
             d['sw'] = sw
             d['ne'] = ne
             domains.append(d)
@@ -256,20 +256,20 @@ if len(domains) > 1:
                 d['parent'] = parent_id
                 d['color'] = st.color_picker("Border color", d['color'], key=f"color_{d['id']}")
 
-                for ratio_key in (f"ixratio_{d['id']}", f"iyratio_{d['id']}"):
+                for ratio_key in (f"idxratio_{d['id']}", f"idyratio_{d['id']}"):
                     if ratio_key not in st.session_state:
-                        st.session_state[ratio_key] = d['ixratio'] if 'ixratio' in ratio_key else d['iyratio']
+                        st.session_state[ratio_key] = d['idxratio'] if 'idxratio' in ratio_key else d['idyratio']
                 for size_key in (f"ixsize_{d['id']}", f"iysize_{d['id']}"):
                     if size_key not in st.session_state:
                         st.session_state[size_key] = d['ixsize'] if 'ixsize' in size_key else d['iysize']
 
                 if st.session_state.auto_squared:
-                    widget_ixratio = st.session_state.get(f"ixratio_{d['id']}", d['ixratio'])
-                    widget_iyratio = st.session_state.get(f"iyratio_{d['id']}", d['iyratio'])
-                    if widget_ixratio != d['ixratio']:
-                        st.session_state[f"iyratio_{d['id']}"] = widget_ixratio
-                    elif widget_iyratio != d['iyratio']:
-                        st.session_state[f"ixratio_{d['id']}"] = widget_iyratio
+                    widget_idxratio = st.session_state.get(f"idxratio_{d['id']}", d['idxratio'])
+                    widget_idyratio = st.session_state.get(f"idyratio_{d['id']}", d['idyratio'])
+                    if widget_idxratio != d['idxratio']:
+                        st.session_state[f"idyratio_{d['id']}"] = widget_idxratio
+                    elif widget_idyratio != d['idyratio']:
+                        st.session_state[f"idxratio_{d['id']}"] = widget_idyratio
 
                 if st.session_state.square_domain:
                     widget_ixsize = st.session_state.get(f"ixsize_{d['id']}", d['ixsize'])
@@ -281,16 +281,16 @@ if len(domains) > 1:
 
                 col_1, col_2 = st.columns(2)
                 with col_1:
-                    d['ixor'] = st.number_input("IXOR", value=d['ixor'], min_value=0, step=1, key=f"ixor_{d['id']}")
-                    d['ixratio'] = st.number_input("IXRATIO", min_value=1, step=1, key=f"ixratio_{d['id']}")
-                    d['ixsize'] = st.number_input("IXSIZE", min_value=1, step=1, key=f"ixsize_{d['id']}")
+                    d['ixor'] = st.number_input("IXOR", value=d['ixor'], min_value=0, step=1, key=f"ixor_{d['id']}", help="IXOR: first point I index, according to the parent grid, left to and out of the new physical domain.")
+                    d['idxratio'] = st.number_input("IDXRATIO", min_value=1, step=1, key=f"idxratio_{d['id']}", help="IDXRATIO: resolution factor in east-west direction between the parent grid and the new grid. Must only be factor of 2, 3 or 5")
+                    d['ixsize'] = st.number_input("IXSIZE", min_value=1, step=1, key=f"ixsize_{d['id']}", help="IXSIZE: number of grid points in east-west direction, according to the parent grid, recovered by the new domain. Must only be factor of 2, 3 or 5")
                 with col_2:
-                    d['iyor'] = st.number_input("IYOR", value=d['iyor'], min_value=0, step=1, key=f"iyor_{d['id']}")
-                    d['iyratio'] = st.number_input("IYRATIO", min_value=1, step=1, key=f"iyratio_{d['id']}")
-                    d['iysize'] = st.number_input("IYSIZE", min_value=1, step=1, key=f"iysize_{d['id']}")
+                    d['iyor'] = st.number_input("IYOR", value=d['iyor'], min_value=0, step=1, key=f"iyor_{d['id']}", help="IYOR: first point J index, according to the parent grid, under and out of the new physical domain.")
+                    d['idyratio'] = st.number_input("IDYRATIO", min_value=1, step=1, key=f"idyratio_{d['id']}", help="IDYRATIO: resolution factor in south-north direction between the parent grid and the new grid. Must only be factor of 2, 3 or 5")
+                    d['iysize'] = st.number_input("IYSIZE", min_value=1, step=1, key=f"iysize_{d['id']}", help="IYSIZE: number of grid points in south-north direction, according to the parent grid, recovered by the new domain. Must only be factor of 2, 3 or 5")
 
-                child_nimax = d['ixsize'] * d['ixratio']
-                child_njmax = d['iysize'] * d['iyratio']
+                child_nimax = d['ixsize'] * d['idxratio']
+                child_njmax = d['iysize'] * d['idyratio']
                 parent = next(p for p in domains if p['id'] == d['parent'])
                 
                 # Get effective dimensions of parent domain
@@ -302,8 +302,8 @@ if len(domains) > 1:
                              f"Check IXOR+IXSIZE ({d['ixor'] + d['ixsize']}) <= NIMAX ({parent_nimax}) "
                              f"and IYOR+IYSIZE ({d['iyor'] + d['iysize']}) <= NJMAX ({parent_njmax}).")
 
-                child_xdeltax = parent['xdeltax'] / d['ixratio']
-                child_xdeltay = parent['xdeltay'] / d['iyratio']
+                child_xdeltax = parent['xdeltax'] / d['idxratio']
+                child_xdeltay = parent['xdeltay'] / d['idyratio']
                 st.caption(f"NIMAX={child_nimax}, NJMAX={child_njmax}, "
                            f"XDELTAX={child_xdeltax:.1f}m, XDELTAY={child_xdeltay:.1f}m")
 
@@ -313,7 +313,7 @@ if len(domains) > 1:
 
                 sw, ne = compute_child_bounds(parent, d['ixor'], d['iyor'],
                                               d['ixsize'], d['iysize'],
-                                              d['ixratio'], d['iyratio'])
+                                              d['idxratio'], d['idyratio'])
                 d['sw'] = sw
                 d['ne'] = ne
                 d['xdeltax'] = child_xdeltax
@@ -345,10 +345,10 @@ with st.sidebar:
             label = f"D{d['id']} — Points: {d['nimax']}×{d['njmax']} — Resolution: {d['xdeltax']:.0f}m × {d['xdeltay']:.0f}m"
         else:
             parent = next(p for p in st.session_state.domains if p['id'] == d['parent'])
-            n = d['ixsize'] * d['ixratio']
-            m = d['iysize'] * d['iyratio']
-            dx = parent['xdeltax'] / d['ixratio']
-            dy = parent['xdeltay'] / d['iyratio']
+            n = d['ixsize'] * d['idxratio']
+            m = d['iysize'] * d['idyratio']
+            dx = parent['xdeltax'] / d['idxratio']
+            dy = parent['xdeltay'] / d['idyratio']
             label = f"D{d['id']} — {n}×{m} pts — {dx:.0f}m × {dy:.0f}m"
         st.markdown(
             f"<span style='display:inline-block;width:12px;height:12px;"
