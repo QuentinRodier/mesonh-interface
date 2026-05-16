@@ -283,12 +283,13 @@ def render_editor(blocks, relative_path):
                                     st.rerun()
                         else:
                             st.caption("No params to add")
-                    if block_name == "NAM_VER_GRID":
+                    if block_name == "NAM_VER_GRID" or block_name == "NAM_CONF_PROJ_GRID" or block_name == "NAM_INIFILE_CONF_PROJ":
+                        origin_page = "Horizontal Grids" if block_name == "NAM_CONF_PROJ_GRID" or block_name == "NAM_INIFILE_CONF_PROJ" else "Vertical Grids"
                         copied_data = utils.get_copied_params()
                         if copied_data:
                             st.button(
                                 "📋", key=f"paste_{block_name}",
-                                help="Paste NAM_VER_GRID params from clipboard copied in Vertical Levels page",
+                                help=f"Paste {block_name} parameters from clipboard copied in {origin_page} page",
                                 on_click=paste_nam_ver_grid,
                                 args=(block, block_name, relative_path)
                             )

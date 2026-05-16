@@ -3,6 +3,7 @@ import folium
 from streamlit_folium import st_folium
 from folium.plugins import Draw
 import math
+from modules import utils
 
 st.set_page_config(page_title="🌐 Horizontal Grids", layout="wide")
 
@@ -148,11 +149,24 @@ with col_ctrl:
     with col_a:
         new_clat = st.number_input("Center latitude", value=d1['center_lat'], format="%.6f", help="XLATCEN: latitude of the center of domain 1 (in decimals)")
         new_nimax = st.number_input("NIMAX", value=d1['nimax'], min_value=1, step=1, help="NIMAX: number of physical points in east-west direction")
-        new_xdeltax = st.number_input("XDELTAX (m)", value=d1['xdeltax'], min_value=0.00001, step=100.0, format="%.4f", help="XDELTAX: size of the mesh along the east-west direction (in meters)")
+        new_xdeltax = st.number_input("XDX (m)", value=d1['xdeltax'], min_value=0.00001, step=100.0, format="%.4f", help=r"XDX (or $\Delta_x$): size of the mesh along the east-west direction (in meters)")
     with col_b:
         new_clon = st.number_input("Center longitude", value=d1['center_lon'], format="%.6f", help="XLONCEN: longitude of the center of domain 1 (in decimals)")
         new_njmax = st.number_input("NJMAX", value=d1['njmax'], min_value=1, step=1, help="NJMAX: number of physical points in south-north direction")
-        new_xdeltay = st.number_input("XDELTAY (m)", value=d1['xdeltay'], min_value=0.00001, step=100.0, format="%.4f", help="XDELTAY: size of the mesh along the south-north direction (in meters)")
+        new_xdeltay = st.number_input("XDY (m)", value=d1['xdeltay'], min_value=0.00001, step=100.0, format="%.4f", help=r"XDY (or $\Delta_y$): size of the mesh along the south-north direction (in meters)")
+
+    if st.button("📋 Copy parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_CONF_PROJ_GRID to clipboard. Paste it in Namelist Editor or Workspace"):
+                # Mapping entre les variables de l'UI et les clés réelles de la namelist
+                params_to_copy = {
+                    'XLATCEN': new_clat,
+                    'XLONCEN': new_clon,
+                    'NIMAX': new_nimax,
+                    'NJMAX': new_njmax,
+                    'XDX': new_xdeltax,
+                    'XDY': new_xdeltay
+                }
+                utils.save_copied_params(params_to_copy)
+                st.success("Parameters copied!")
 
     if st.session_state.auto_squared:
         if new_xdeltax != d1['xdeltax']:
@@ -306,6 +320,19 @@ if len(domains) > 1:
                 child_xdeltay = parent['xdeltay'] / d['idyratio']
                 st.caption(f"NIMAX={child_nimax}, NJMAX={child_njmax}, "
                            f"XDELTAX={child_xdeltax:.1f}m, XDELTAY={child_xdeltay:.1f}m")
+
+                if st.button("📋 Copy parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_INIFILE_CONF_PROJ to clipboard. Paste it in Namelist Editor or Workspace"):
+                    # Mapping entre les variables de l'UI et les clés réelles de la namelist
+                    params_to_copy = {
+                        'IXOR': d['ixor'],
+                        'IYOR': d['iyor'],
+                        'IXSIZE': d['ixsize'],
+                        'IYSIZE': d['iysize'],
+                        'IDXRATIO': d['idxratio'],
+                        'IDYRATIO': d['idyratio']
+                    }
+                    utils.save_copied_params(params_to_copy)
+                    st.success("Parameters copied!")
 
                 if st.button(f"Delete Domain {d['id']}", key=f"delete_{d['id']}", use_container_width=True, type='secondary'):
                     delete_domain(d['id'])
