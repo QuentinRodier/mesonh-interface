@@ -277,27 +277,32 @@ def render_namelist_view():
         if st.session_state.namelist_blocks and st.session_state.current_file:
             current_file = st.session_state.current_file
             results = advise.run_all_checks(st.session_state.namelist_blocks, current_file)
-            
-            total_issues = len(results['blocks']) + len(results['params']) + len(results['values'])
-            
+
+            total_issues = len(results['blocks']) + len(results['params']) + len(results['values']) + len(results['fortran'])
+
             if total_issues == 0:
                 st.success("✅ All checks passed")
             else:
                 st.warning(f"⚠️ {total_issues} issue(s) found")
-                
+
                 if results['blocks']:
                     with st.expander(f"❌ Block issues ({len(results['blocks'])})"):
                         for issue in results['blocks']:
                             st.write(f"• {issue}")
-                
+
                 if results['params']:
                     with st.expander(f"❌ Parameter issues ({len(results['params'])})"):
                         for issue in results['params']:
                             st.write(f"• {issue}")
-                
+
                 if results['values']:
                     with st.expander(f"❌ Value type issues ({len(results['values'])})"):
                         for issue in results['values']:
+                            st.write(f"• {issue}")
+
+                if results['fortran']:
+                    with st.expander(f"🔧 Fortran checks ({len(results['fortran'])})"):
+                        for issue in results['fortran']:
                             st.write(f"• {issue}")
         else:
             st.info("Load a namelist to run Advise checks")
@@ -310,10 +315,6 @@ def render_upload():
         uploaded_file = st.file_uploader("Upload namelist", type=None)
 
         if uploaded_file is not None:
-            print("Uploaded!")
-            print(uploaded_file.name)
-            print(st.session_state.current_file)
-            #if st.session_state.current_file != uploaded_file.name:
             content = uploaded_file.getvalue().decode("utf-8")
             blocks = parser.parse_namelist(content)
 
