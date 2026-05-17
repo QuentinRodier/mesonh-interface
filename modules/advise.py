@@ -196,7 +196,7 @@ def parse_fortran_checks(fortran_path, function_names=None):
         param_name = args[1].strip().strip("'\"")
         allowed_values = [v.strip().strip("'\"") for v in args[3:]]
         checks[param_name] = allowed_values
-
+    print(checks)
     return checks
 
 
@@ -228,9 +228,39 @@ def run_all_checks(blocks, current_file):
         "MESONH_CODE_DIR",
         str(Path(__file__).resolve().parent.parent),
     )
-    fortran_path = os.path.join(mesonh_code_dir, "src", "MNH", "read_exsegn.f90")
-    if os.path.exists(fortran_path):
-        fortran_checks = parse_fortran_checks(fortran_path)
+    fortran_files_to_check = [
+        {
+            "path": os.path.join(mesonh_code_dir, "src", "MNH", "read_exsegn.f90"),
+            "function_names": None
+        },
+        {
+            "path": os.path.join(mesonh_code_dir, "src", "PHYEX", "turb", "modd_turbn.f90"),
+            "function_names": ['CHECK_NAM_VAL_CHAR']
+        },
+        {
+            "path": os.path.join(mesonh_code_dir, "src", "PHYEX", "micro", "modd_param_lima.f90"),
+            "function_names": ['CHECK_NAM_VAL_CHAR']
+        },
+        {
+            "path": os.path.join(mesonh_code_dir, "src", "PHYEX", "turb", "modd_param_mfshalln.f90"),
+            "function_names": ['CHECK_NAM_VAL_CHAR']
+        },
+        {
+            "path": os.path.join(mesonh_code_dir, "src", "PHYEX", "micro", "modd_param_icen.f90"),
+            "function_names": ['CHECK_NAM_VAL_CHAR']
+        },
+        {
+            "path": os.path.join(mesonh_code_dir, "src", "PHYEX", "micro", "modd_nebn.f90"),
+            "function_names": ['CHECK_NAM_VAL_CHAR']
+        }
+    ]
+
+    fortran_checks = {}
+    for file_info in fortran_files_to_check:
+        fortran_path = file_info["path"]
+        if os.path.exists(fortran_path):
+            result = parse_fortran_checks(fortran_path, function_names=file_info["function_names"])
+            fortran_checks.update(result)
 
     results = {
         'blocks': check_block_names(blocks, program_type),
