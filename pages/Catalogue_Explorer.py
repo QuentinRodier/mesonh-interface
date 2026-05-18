@@ -193,6 +193,19 @@ def render_workspace():
                 return tree
 
             tree = build_tree()
+
+            def init_tree_state(subtree, prefix=""):
+                for name in sorted(subtree.keys()):
+                    path = f"{prefix}/{name}" if prefix else name
+                    content = subtree[name]
+                    if isinstance(content, dict):
+                        if path not in st.session_state.workspace_tree_state:
+                            st.session_state.workspace_tree_state[path] = False
+                        if path not in st.session_state.workspace_tree_selected:
+                            st.session_state.workspace_tree_selected[path] = False
+                        init_tree_state(content, path)
+
+            init_tree_state(tree)
             
             def render_tree(subtree, prefix="", indent=0):
                 for name in sorted(subtree.keys()):
@@ -201,22 +214,15 @@ def render_workspace():
                     spacer = "&nbsp;&nbsp;&nbsp;&nbsp;" * indent
                     
                     if isinstance(content, dict):
-                        if path not in st.session_state.workspace_tree_state:
-                            st.session_state.workspace_tree_state[path] = False
-                        if path not in st.session_state.workspace_tree_selected:
-                            st.session_state.workspace_tree_selected[path] = False
-
                         col1, col2 = st.columns([1, 8])
                         with col1:
-                            selected = st.checkbox("📋", value=st.session_state.workspace_tree_selected[path],
+                            selected = st.checkbox("📋",
                                 key=f"select_{path}")
                             st.session_state.workspace_tree_selected[path] = selected
 
                         with col2:
                             expanded = st.checkbox(f"{spacer}📁 {name}",
-                                value=st.session_state.workspace_tree_state[path],
                                 key=f"tree_{path}")
-                            st.session_state.workspace_tree_state[path] = expanded
 
                         if expanded:
                             render_tree(content, path, indent + 1)
@@ -254,7 +260,7 @@ def render_workspace():
                                 
                                 st.rerun()
             
-            with st.expander("📁 Tree View"):
+            with st.expander("📁 Tree View", key="tree_view_expander"):
                 render_tree(tree)
             
             st.divider()

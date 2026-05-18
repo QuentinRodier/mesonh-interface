@@ -392,6 +392,17 @@ def render_workspace():
                 return tree
 
             tree = build_tree()
+
+            def init_tree_state(subtree, prefix=""):
+                for name in sorted(subtree.keys()):
+                    path = f"{prefix}/{name}" if prefix else name
+                    content = subtree[name]
+                    if isinstance(content, dict):
+                        if path not in st.session_state.workspace_tree_state:
+                            st.session_state.workspace_tree_state[path] = False
+                        init_tree_state(content, path)
+
+            init_tree_state(tree)
             
             def render_tree(subtree, prefix="", indent=0):
                 for name in sorted(subtree.keys()):
@@ -400,10 +411,7 @@ def render_workspace():
                     spacer = "&nbsp;&nbsp;&nbsp;&nbsp;" * indent
                     
                     if isinstance(content, dict):
-                        if path not in st.session_state.workspace_tree_state:
-                            st.session_state.workspace_tree_state[path] = False
-                        is_expanded = st.checkbox(f"{spacer}📁 {name}", value=st.session_state.workspace_tree_state[path], key=f"tree_{path}")
-                        st.session_state.workspace_tree_state[path] = is_expanded
+                        is_expanded = st.checkbox(f"{spacer}📁 {name}", key=f"tree_{path}")
                         if is_expanded:
                             render_tree(content, path, indent + 1)
                     else:
@@ -440,7 +448,7 @@ def render_workspace():
                                 
                                 st.rerun()
             
-            with st.expander("📁 Tree View"):
+            with st.expander("📁 Tree View", key="tree_view_expander"):
                 render_tree(tree)
             st.write(f"**{len(st.session_state.workspace_files)}** files loaded")
 
