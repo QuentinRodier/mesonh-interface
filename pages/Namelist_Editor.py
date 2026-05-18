@@ -276,7 +276,7 @@ def render_namelist_view():
             current_file = st.session_state.current_file
             results = advise.run_all_checks(st.session_state.namelist_blocks, current_file)
 
-            total_issues = len(results['blocks']) + len(results['params']) + len(results['values']) + len(results['fortran'])
+            total_issues = len(results['blocks']) + len(results['params']) + len(results['values']) + len(results['fortran']) + len(results['conditions'])
 
             if total_issues == 0:
                 st.success("✅ All checks passed")
@@ -302,6 +302,11 @@ def render_namelist_view():
                     with st.expander(f"🔧 Fortran checks ({len(results['fortran'])})"):
                         for issue in results['fortran']:
                             st.write(f"• {issue}")
+
+                if results['conditions']:
+                    with st.expander(f"🔴 Condition checks ({len(results['conditions'])})"):
+                        for issue in results['conditions']:
+                            st.error(issue)
         else:
             st.info("Load a namelist to run Advise checks")
 

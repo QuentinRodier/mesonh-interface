@@ -325,7 +325,7 @@ def render_editor(blocks, relative_path):
             current_file = os.path.basename(selected_file["path"])
             results = advise.run_all_checks(blocks, current_file)
             
-            total_issues = len(results['blocks']) + len(results['params']) + len(results['values']) + len(results['fortran'])
+            total_issues = len(results['blocks']) + len(results['params']) + len(results['values']) + len(results['fortran']) + len(results['conditions'])
             
             if total_issues == 0:
                 st.success("✅ All checks passed")
@@ -351,6 +351,11 @@ def render_editor(blocks, relative_path):
                     with st.expander(f"🔧 Fortran checks ({len(results['fortran'])})"):
                         for issue in results['fortran']:
                             st.write(f"• {issue}")
+                
+                if results['conditions']:
+                    with st.expander(f"🔴 Condition checks ({len(results['conditions'])})"):
+                        for issue in results['conditions']:
+                            st.error(issue)
         else:
             st.info("Select a file to run Advise checks")
 
