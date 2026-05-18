@@ -202,7 +202,7 @@ with col_ctrl:
             st.warning(f"NJMAX must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
         new_xdeltay = st.number_input("XDY (m)", value=d1['xdeltay'], min_value=0.00001, step=100.0, format="%.4f", help=r"XDY (or $\Delta_y$): size of the mesh along the south-north direction (in meters)")
 
-    if st.button("📋 Copy parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_CONF_PROJ_GRID to clipboard. Paste it in Namelist Editor or Workspace"):
+    if st.button("📋 Copy parameters to clipboard", key="copy_d1", use_container_width=True, help="Copy the above parameters of NAM_CONF_PROJ_GRID to clipboard. Paste it in Namelist Editor or Workspace"):
                 # Mapping entre les variables de l'UI et les clés réelles de la namelist
                 params_to_copy = {
                     'XLATCEN': new_clat,
@@ -272,7 +272,7 @@ with col_ctrl:
             pass
     st.space(size="small")
     if len(domains) < MAX_DOMAINS:
-        if st.button("+ Add domain", use_container_width=True, type='secondary'):
+        if st.button("+ Add domain", key="add_domain", use_container_width=True, type='secondary'):
             new_id = max(p['id'] for p in domains) + 1
             d = make_child(new_id, 1)
             p = domains[0]
@@ -374,7 +374,7 @@ if len(domains) > 1:
                 st.caption(f"NIMAX={d['nimax']}, NJMAX={d['njmax']}, "
                            f"XDELTAX={child_xdeltax:.1f}m, XDELTAY={child_xdeltay:.1f}m")
 
-                if st.button("📋 Copy parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_INIFILE_CONF_PROJ to clipboard. Paste it in Namelist Editor or Workspace"):
+                if st.button("📋 Copy parameters to clipboard", key=f"copy_{d['id']}", use_container_width=True, help="Copy the above parameters of NAM_INIFILE_CONF_PROJ to clipboard. Paste it in Namelist Editor or Workspace"):
                     # Mapping entre les variables de l'UI et les clés réelles de la namelist
                     params_to_copy = {
                         'IXOR': d['ixor'],
