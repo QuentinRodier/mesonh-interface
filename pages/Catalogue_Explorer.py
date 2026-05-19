@@ -5,7 +5,7 @@ import os
 from modules import parser, docs
 from config import EXAMPLES_DIR, DOC_CATALOGUE_DIR
 
-st.set_page_config(page_title="Workspace", layout="wide")
+st.set_page_config(page_title="Catalogue Explorer", layout="wide")
 
 if 'workspace_path' not in st.session_state:
     st.session_state.workspace_path = None
