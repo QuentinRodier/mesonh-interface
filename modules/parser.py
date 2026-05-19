@@ -66,7 +66,7 @@ def write_namelist(blocks: Dict[str, NamelistBlock]) -> str:
 
     for block in blocks.values():
         if not block.entries:
-            lines.append(f"&{block.name} /")
+            lines.append(f"&{block.append_name if hasattr(block, 'append_name') else block.name} /")
             continue
 
         lines.append(f"&{block.name}")
@@ -84,7 +84,6 @@ def write_namelist(blocks: Dict[str, NamelistBlock]) -> str:
 # ==========================================================
 # Core parser
 # ==========================================================
-
 def _parse_block(content: str, start: int):
     i = start + 1
     n = len(content)
@@ -108,6 +107,12 @@ def _parse_block(content: str, start: int):
     while i < n:
         c = content[i]
 
+        # Handle Fortran comments: skip everything from '!' to newline
+        if c == '!' and not in_quote:
+            while i < n and content[i] != '\n':
+                i += 1
+            continue
+
         if c in ("'", '"'):
             if not in_quote:
                 in_quote = True
@@ -130,7 +135,7 @@ def _parse_block(content: str, start: int):
     params_text = "".join(params).strip()
 
     block = NamelistBlock(name=block_name)
-    block.raw_lines = [f"&{block_name} {params_text} /"]
+    block.raw_lines = [f"&{block.name} {params_text} /"]
 
     if params_text:
         block.entries = _parse_assignments(params_text)
@@ -271,14 +276,14 @@ if __name__ == "__main__":
 
     txt = """
 &NAM_REAL_PGD /
-&NAM_DIMn_PRE NIMAX=1, NJMAX=1 /
+&NAM_DIMn_PRE NIMAX=1, NJMAX=1 ! This is a comment
 &NAM_CONF_PRE LCARTESIAN=.TRUE., NVERB=5,
               CIDEAL='RSOU',  CZS='FLAT', LFORCING=.TRUE., LPACK=.FALSE.,
               LBOUSS=.FALSE., CEQNSYS='DUR', LPERTURB=.FALSE.,
               JPHEXT=1,NHALO=1  /
 &NAM_PERT_PRE /
 &NAM_CONFn LUSERV=.TRUE. /
-&NAM_GRID_PRE XLAT0=35.762 XLON0=-96. /
+&NAM_GRID_PRE XLAT0=35.762 XLON0=-96. ! Another comment
 """
 
     data = parse_namelist(txt)
@@ -287,4 +292,4 @@ if __name__ == "__main__":
         print("=" * 50)
         print(name)
         for k, v in block.entries.items():
-            print(k, "=", v.value)
+            print(k, "=", v)
