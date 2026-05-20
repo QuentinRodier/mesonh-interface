@@ -165,6 +165,14 @@ def render_editor(blocks, relative_path):
                             else:
                                 name_col = cols[base_idx]
                                 val_col = cols[base_idx + 1]
+
+                            if getattr(entry, 'is_comment', False):
+                                with name_col:
+                                    new_val = st.text_area("Comment", value=entry.value, key=f"{relative_path}_{block_name}_{param_name}", label_visibility="collapsed")
+                                    entry.value = new_val
+                                    entry.raw_line = f"! {new_val}"
+                                continue
+
                             with name_col:
                                 is_default = is_default_value(block_name, param_name, entry.value)
                                 if st.session_state.colorize_default:

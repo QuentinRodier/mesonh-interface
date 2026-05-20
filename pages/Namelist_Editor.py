@@ -220,7 +220,14 @@ def render_namelist_view():
                              else:
                                  name_col = cols[base_idx]
                                  val_col = cols[base_idx + 1]
-                             
+                             ver = st.session_state.get('upload_ver', 0)
+                             if getattr(entry, 'is_comment', False):
+                                 with name_col:
+                                     new_val = st.text_area("Comment", value=entry.value, key=f"{block_name}_{param_name}_{ver}", label_visibility="collapsed", help="This is FORTRAN comments")
+                                     entry.value = new_val
+                                     entry.raw_line = f"! {new_val}"
+                                 continue
+
                              with name_col:
                                  is_default = is_default_value(block_name, param_name, entry.value)
                                  if st.session_state.colorize_default:
@@ -342,21 +349,35 @@ def render_upload():
         st.checkbox("Show empty blocks", key="show_empty", value=False)
         st.checkbox("Expand all blocks", key="expand_all", value=True)  
         st.checkbox("Colorize default values", key="colorize_default", value=False)
-
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            st.button("A→Z", key="btn_sort", disabled=True)
-        with col2:
-            if st.button("Remove empty", key="btn_remove_empty"):
-                blocks = st.session_state.namelist_blocks
-                new_blocks = {name: block for name, block in blocks.items() if block.entries}
-                st.session_state.namelist_blocks = new_blocks
-        
-        show_delete_keys = st.checkbox("Delete a key ❌", value=st.session_state.show_delete_keys, key="toggle_delete_keys")
+        show_delete_keys = st.checkbox("Delete a key-value ❌", value=st.session_state.show_delete_keys, key="toggle_delete_keys")
         if show_delete_keys != st.session_state.show_delete_keys:
             st.session_state.show_delete_keys = show_delete_keys
             st.rerun()
-        
+        st.button("A→Z", key="btn_sort", disabled=True)
+       
+        st.divider()
+        st.header("Edit blocks")
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            with st.popover("🗑️ Delete blocks"):
+                if st.session_state.namelist_blocks:
+                    for block_name in list(st.session_state.namelist_blocks.keys()):
+                        st.checkbox(f"&{block_name}", key=f"del_block_{block_name}")
+                    
+                    if st.button("Delete selected", key="del_blocks_btn"):
+                        blocks_to_delete = [b for b in st.session_state.namelist_blocks if st.session_state.get(f"del_block_{b}")]
+                        for block_name in blocks_to_delete:
+                            del st.session_state.namelist_blocks[block_name]
+                        st.rerun()
+                else:
+                    st.caption("No blocks to delete")
+        with col2:
+            if st.button("Remove empty blocks", key="btn_remove_empty"):
+                blocks = st.session_state.namelist_blocks
+                new_blocks = {name: block for name, block in blocks.items() if block.entries}
+                st.session_state.namelist_blocks = new_blocks
+               
         current_file = st.session_state.current_file
         if current_file:
             program_type = docs.get_program_type(current_file)
@@ -370,10 +391,10 @@ def render_upload():
                 block_options = ["Select a namelist group"] + list(block_titles.values())
                 col_add1, col_add2 = st.columns([3, 1])
                 with col_add1:
-                    selected_title = st.selectbox("Add a block", block_options, key="add_block_select")
+                    selected_title = st.selectbox(" ", block_options, key="add_block_select")
                 with col_add2:
                     position = st.radio("Position", ["Top", "Bottom"], horizontal=True, key="add_block_position")
-                if selected_title and selected_title != "Select a namelist group":
+                if selected_title and selected_title != "Add a block":
                     for block_name, title in block_titles.items():
                         if title == selected_title:
                             defaults = docs.get_block_defaults(block_name)
@@ -399,19 +420,18 @@ def render_upload():
                                 st.session_state.namelist_blocks[title] = new_block
                             st.rerun()
                             break
-        
-        with st.popover("🗑️ Delete blocks"):
-            if st.session_state.namelist_blocks:
-                for block_name in list(st.session_state.namelist_blocks.keys()):
-                    st.checkbox(f"&{block_name}", key=f"del_block_{block_name}")
-                
-                if st.button("Delete selected", key="del_blocks_btn"):
-                    blocks_to_delete = [b for b in st.session_state.namelist_blocks if st.session_state.get(f"del_block_{b}")]
-                    for block_name in blocks_to_delete:
-                        del st.session_state.namelist_blocks[block_name]
-                    st.rerun()
-            else:
-                st.caption("No blocks to delete")
+            
+        if st.session_state.namelist_blocks:
+            with st.popover("Rename Block"):
+                rename_target = st.selectbox("Select block", list(st.session_state.namelist_blocks.keys()), key="rename_target_select")
+                new_name = st.text_input("New name", value=rename_target, key="rename_input_text", label_visibility="collapsed")
+                if st.button("Confirm", use_container_width=True):
+                    if new_name != rename_target:
+                        if new_name not in st.session_state.namelist_blocks:
+                            st.session_state.namelist_blocks[new_name] = st.session_state.namelist_blocks.pop(rename_target)
+                            st.rerun()
+                        else:
+                            st.error("Name already exists")
         
         st.divider()
 
