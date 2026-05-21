@@ -226,7 +226,7 @@ def render_editor(blocks, relative_path):
                                                         st.error("Integers only")
                                                         idx_values.append("1")
                                             idx = ','.join(idx_values)
-                                            st.session_state[f"idx_{relative_path}_{block_name}_{param}"] = idx
+                                            #st.session_state[f"idx_{relative_path}_{block_name}_{param}"] = idx
                                         else:
                                             idx = st.text_input(" ", value="1", 
                                                                  key=f"idx_{relative_path}_{block_name}_{param}", 
@@ -234,7 +234,7 @@ def render_editor(blocks, relative_path):
                                             if not idx.isdigit():
                                                 st.error("Integers only")
                                                 idx = "1"
-                                            st.session_state[f"idx_{relative_path}_{block_name}_{param}"] = idx
+                                            #st.session_state[f"idx_{relative_path}_{block_name}_{param}"] = idx
 
                             col_pbtn1, col_pbtn2 = st.columns(2)
                             with col_pbtn1:
