@@ -388,7 +388,7 @@ def render_upload():
             
             if possible_blocks:
                 block_titles = {b: docs.get_block_title(b) for b in possible_blocks}
-                block_options = ["Select a namelist group"] + list(block_titles.values())
+                block_options = ["Add a namelist block"] + list(block_titles.values())
                 col_add1, col_add2 = st.columns([3, 1])
                 with col_add1:
                     selected_title = st.selectbox(" ", block_options, key="add_block_select")

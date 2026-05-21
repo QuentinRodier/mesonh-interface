@@ -466,12 +466,92 @@ def render_workspace():
             st.checkbox("Show empty blocks", key="show_empty", value=False)
             st.checkbox("Expand all blocks", key="expand_all", value=True)  
             st.checkbox("Colorize default values", key="colorize_default", value=False)
-            
             show_delete_keys = st.checkbox("Delete a key ❌", value=st.session_state.show_delete_keys, key="toggle_delete_keys")
             if show_delete_keys != st.session_state.show_delete_keys:
                 st.session_state.show_delete_keys = show_delete_keys
                 st.rerun()
             
+            st.divider()
+            if st.session_state.selected_file:
+                st.header("Edit blocks")
+                file_info = st.session_state.selected_file
+                relative_path = file_info['relative']
+                blocks = file_info['blocks']
+
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    with st.popover("🗑️ Delete blocks"):
+                        if blocks:
+                            for block_name in list(blocks.keys()):
+                                st.checkbox(f"&{block_name}", key=f"del_block_{relative_path}_{block_name}")
+                            if st.button("Delete selected", key=f"del_blks_btn_{relative_path}"):
+                                to_del = [b for b in blocks if st.session_state.get(f"del_block_{relative_path}_{b}")]
+                                for b in to_del:
+                                    del blocks[b]
+                                save_file(relative_path, blocks)
+                                st.rerun()
+                        else:
+                            st.caption("No blocks to delete")
+                with col2:
+                    if st.button("Remove empty blocks", key=f"rem_empty_{relative_path}"):
+                        new_blocks = {name: b for name, b in blocks.items() if b.entries}
+                        st.session_state.selected_file['blocks'] = new_blocks
+                        save_file(relative_path, blocks)
+                        st.rerun()
+
+                filename = os.path.basename(file_info['path'])
+                program_type = docs.get_program_type(filename)
+                available_blocks = docs.get_available_blocks(program_type) if program_type else []
+                existing_in_file = set(blocks.keys())
+                possible = [b for b in available_blocks if docs.get_block_title(b) not in existing_in_file]
+                
+                if possible:
+                    block_titles = {b: docs.get_block_title(b) for b in possible}
+                    options = ["Add a namelist block"] + list(block_titles.values())
+                    
+                    col_sel, col_pos = st.columns([3, 1])
+                    with col_sel:
+                        selected_title = st.selectbox(" ", options, key=f"add_block_sel_{relative_path}")
+                    with col_pos:
+                        position = st.radio("Position", ["Top", "Bottom"], horizontal=True, key=f"add_pos_short_{relative_path}")
+                    
+                    if selected_title and selected_title != "Add a namelist block":
+                        for block_name, title in block_titles.items():
+                            if title == selected_title:
+                                defaults = docs.get_block_defaults(block_name)
+                                params = docs.get_block_params(block_name)
+                                new_block = parser.NamelistBlock(name=title)
+                                for p_name, d_val in defaults.items():
+                                    is_arr = params.get(p_name, {}).get('is_array', False) if isinstance(params.get(p_name), dict) else False
+                                    if is_arr: continue
+                                    new_block.entries[p_name] = parser.NamelistEntry(
+                                        name=p_name, base_name=p_name, value=d_val,
+                                        raw_line=f"{p_name} = {d_val}", is_array=False, array_index=""
+                                    )
+                                if position == "Top":
+                                    new_blocks = {title: new_block}; new_blocks.update(blocks)
+                                    blocks.clear(); blocks.update(new_blocks)
+                                else:
+                                    blocks[title] = new_block
+                                save_file(relative_path, blocks)
+                                st.rerun()
+                                break
+                
+                with st.popover("Rename Block"):
+                    if blocks:
+                        rename_target = st.selectbox("Select block", list(blocks.keys()), key=f"rename_target_{relative_path}")
+                        new_name = st.text_input("New name", value=rename_target, key=f"rename_input_{relative_path}", label_visibility="collapsed")
+                        if st.button("Confirm", use_container_width=True, key=f"confirm_rename_{relative_path}"):
+                            if new_name != rename_target:
+                                if new_name not in blocks:
+                                    blocks[new_name] = blocks.pop(rename_target)
+                                    save_file(relative_path, blocks)
+                                    st.rerun()
+                                else:
+                                    st.error("Name already exists")
+                    else:
+                        st.caption("No blocks to rename")
+
             st.divider()
             editor_width = st.slider("Editor width", 1, 4, 2, key="editor_width")
             pair_count = st.slider("Pairs per row", 1, 4, 3, key="pair_count_slider")
@@ -548,9 +628,7 @@ def render_workspace():
         
         if file_info:
             st.session_state.selected_file = file_info
-    
-    st.divider()
-    
+       
     if st.session_state.selected_file:
         file_info = st.session_state.selected_file
         relative_path = file_info['relative']
@@ -561,66 +639,6 @@ def render_workspace():
             if st.button("💾 Save", key=f"save_{relative_path}"):
                 save_file(relative_path, blocks)
                 st.success("Saved!")
-
-        with col_delete: 
-            with st.popover("🗑️ Delete blocks"):
-                if blocks:
-                    for block_name in list(blocks.keys()):
-                        st.checkbox(f"&{block_name}", key=f"del_block_{relative_path}_{block_name}")
-                    
-                    if st.button("Delete selected", key=f"del_blks_{relative_path}"):
-                        blocks_to_delete = [b for b in blocks if st.session_state.get(f"del_block_{relative_path}_{b}")]
-                        for block_name in blocks_to_delete:
-                            del blocks[block_name]
-                        save_file(relative_path, blocks)
-                        st.rerun()
-                else:
-                    st.caption("No blocks to delete")
-        with col_add:
-            filename = os.path.basename(file_info['path'])
-            program_type = docs.get_program_type(filename)
-            available_blocks = docs.get_available_blocks(program_type) if program_type else []
-            existing_in_file = set(blocks.keys())
-            possible = [b for b in available_blocks if docs.get_block_title(b) not in existing_in_file]
-            
-            if possible:
-                block_titles = {b: docs.get_block_title(b) for b in possible}
-                options = ["Select a namelist group"] + list(block_titles.values())
-                
-                col_select, col_pos = st.columns([3, 1])
-                with col_select:
-                    selected_title = st.selectbox("Add a block", options, key=f"add_block_{relative_path}")
-                with col_pos:
-                    position = st.radio("Position", ["Top", "Bottom"], horizontal=True, key=f"add_pos_{relative_path}")
-                
-                if selected_title and selected_title != "Select a namelist group":
-                    for block_name, title in block_titles.items():
-                        if title == selected_title:
-                            defaults = docs.get_block_defaults(block_name)
-                            params = docs.get_block_params(block_name)
-                            new_block = parser.NamelistBlock(name=title)
-                            for param_name, default_value in defaults.items():
-                                is_array = params.get(param_name, {}).get('is_array', False) if isinstance(params.get(param_name), dict) else False
-                                if is_array:
-                                    continue
-                                new_block.entries[param_name] = parser.NamelistEntry(
-                                    name=param_name,
-                                    base_name=param_name,
-                                    value=default_value,
-                                    raw_line=f"{param_name} = {default_value}",
-                                    is_array=False,
-                                    array_index=""
-                                )
-                            if position == "Top":
-                                new_blocks = {title: new_block}
-                                new_blocks.update(blocks)
-                                blocks.clear()
-                                blocks.update(new_blocks)
-                            else:
-                                blocks[title] = new_block
-                            save_file(relative_path, file_info['blocks'])
-                            st.rerun()
-                            break
                 
         render_editor(blocks, relative_path)
     #else:
