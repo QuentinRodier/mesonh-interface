@@ -24,6 +24,8 @@ if 'doc_height' not in st.session_state:
     st.session_state.doc_height = 800
 if 'show_delete_keys' not in st.session_state:
     st.session_state.show_delete_keys = False
+if 'export_keys_per_row' not in st.session_state:
+    st.session_state.export_keys_per_row = 1
 
 def is_default_value(block_name, param_name, current_value):
     defaults = docs.get_block_defaults(block_name)
@@ -317,10 +319,9 @@ def render_namelist_view():
         else:
             st.info("Load a namelist to run Advise checks")
 
-    file_content = parser.write_namelist(st.session_state.namelist_blocks)
+    file_content = parser.write_namelist(st.session_state.namelist_blocks, st.session_state.export_keys_per_row)
     with download_placeholder:
         st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain")
-
 
 def render_upload():
     with st.sidebar:
@@ -354,7 +355,8 @@ def render_upload():
             st.session_state.show_delete_keys = show_delete_keys
             st.rerun()
         st.button("A→Z", key="btn_sort", disabled=True)
-       
+        st.selectbox("Download: keys per row", [1, 2, 3, 4], key="export_keys_per_row", width=150)
+
         st.divider()
         st.header("Edit blocks")
 

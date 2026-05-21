@@ -81,26 +81,29 @@ def parse_namelist(content: str) -> Dict[str, NamelistBlock]:
     return blocks
 
 
-def write_namelist(blocks: Dict[str, NamelistBlock]) -> str:
+def write_namelist(blocks: Dict[str, NamelistBlock], keys_per_row: int = 1) -> str:
     lines = []
-
     for block in blocks.values():
-        if not block.entries:
-            lines.append(f"&{block.append_name if hasattr(block, 'append_name') else block.name} /")
-            continue
-
         lines.append(f"&{block.name}")
-
+        current_row = []
+        
         for entry in block.entries.values():
             if entry.is_comment:
+                if current_row:
+                    lines.append("  " + "".join(current_row))
+                    current_row = []
                 lines.append(f"  ! {entry.value}")
-                continue
-            value = _format_value(entry.value, entry.decimals)
-            lines.append(f"  {entry.name}={value},")
-
+            else:
+                val = _format_value(entry.value, entry.decimals)
+                current_row.append(f"{entry.name}={val},")
+                if len(current_row) >= keys_per_row:
+                    lines.append("  " + "".join(current_row))
+                    current_row = []
+        
+        if current_row:
+            lines.append("  " + "".join(current_row))
         lines.append(" /")
         lines.append("")
-
     return "\n".join(lines)
 
 
