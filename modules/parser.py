@@ -414,26 +414,26 @@ def _parse_free_text_lines(text: str) -> dict:
         return result
 
     i = 0
-    kw = lines[i].upper()
-    i += 1
-
-    if kw == "CSTN":
-        result["radiosounding_type"] = "CSTN"
-        parsed, consumed = _parse_cstn(lines, i)
-        result["radiosounding"] = parsed
-        i += consumed
-    elif kw == "RSOU":
-        result["radiosounding_type"] = "RSOU"
-        parsed, consumed = _parse_rsou(lines, i)
-        result["radiosounding"] = parsed
-        i += consumed
-
-    if i < len(lines):
-        kw2 = lines[i].upper()
+    while i < len(lines):
+        kw = lines[i].upper()
         i += 1
-        if kw2 in ("ZFRC", "PFRC"):
-            result["forcing_type"] = kw2
-            parsed, consumed = _parse_forcing(lines, i, kw2)
+
+        if kw == "ZHAT":
+            while i < len(lines) and lines[i].upper() not in ("CSTN", "RSOU", "ZHAT", "ZFRC", "PFRC"):
+                i += 1
+        elif kw == "CSTN":
+            result["radiosounding_type"] = "CSTN"
+            parsed, consumed = _parse_cstn(lines, i)
+            result["radiosounding"] = parsed
+            i += consumed
+        elif kw == "RSOU":
+            result["radiosounding_type"] = "RSOU"
+            parsed, consumed = _parse_rsou(lines, i)
+            result["radiosounding"] = parsed
+            i += consumed
+        elif kw in ("ZFRC", "PFRC"):
+            result["forcing_type"] = kw
+            parsed, consumed = _parse_forcing(lines, i, kw)
             result["forcing"] = parsed
             i += consumed
 

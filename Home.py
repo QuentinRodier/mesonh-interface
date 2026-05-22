@@ -50,3 +50,10 @@ with col5:
     
     if st.button("Configure Horizontal Grids", use_container_width=True):
         st.switch_page("pages/Horizontal_Grids.py")
+
+with col6:
+    st.subheader("🎈Initial Radiosoundings and Forcing")
+    st.write("Configure and plots free-format data from PRE_IDEA1.nam")
+    
+    if st.button("Configure & Plot RSOU and FRC data", use_container_width=True):
+        st.switch_page("pages/Initial_radiosoundings_forcing.py")
