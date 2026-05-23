@@ -337,12 +337,23 @@ def render_namelist_view():
     ff_data = st.session_state.get('free_format_data', {})
     if ff_data:
         with st.expander("Free-format data", expanded=bool(st.session_state.get('free_format_data'))):  
-            if st.button("Copy & Edit in 🎈 Radiosoundings and forcing page", key="nav_to_rsou", use_container_width=True):
-                utils.save_copied_params(st.session_state.free_format_data)
-                try:
-                    st.switch_page("pages/Initial_radiosoundings_forcing.py")
-                except Exception as e:
-                    st.error(f"Navigation failed. Ensure the file is in the 'pages/' directory. Error: {e}")
+            has_rsou = ff_data.get("radiosounding_type") is not None
+            has_forcing = ff_data.get("forcing_type") is not None
+            has_zhat = ff_data.get("zhat") is not None
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if has_rsou or has_forcing:
+                    if st.button("Copy & Edit in 🎈 Radiosoundings and forcing page", key="nav_to_rsou", use_container_width=True):
+                        utils.save_copied_params(st.session_state.free_format_data)
+                        try:
+                            st.switch_page("pages/Initial_radiosoundings_forcing.py")
+                        except Exception as e:
+                            st.error(f"Navigation failed. Error: {e}")
+            with col_btn2:
+                if has_zhat:
+                    if st.button("📈 Copy ZHAT to Vertical Levels", key="nav_to_zhat", use_container_width=True):
+                        st.session_state.manual_levels = ff_data["zhat"]
+                        st.switch_page("pages/Vertical_Levels.py")
             current_free_text = parser.write_free_format(ff_data)
             new_free_text = st.text_area(" ", value=current_free_text, height=1000)
             if new_free_text.strip() != current_free_text.strip():

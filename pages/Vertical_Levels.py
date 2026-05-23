@@ -59,12 +59,16 @@ with st.sidebar:
         'ztop': ZTOP, 'sgrd': SGRD, 'stop': STOP
     }
 
-    manual_mode = st.checkbox('Manual mode (YZGRID_TYPE=\'MANUAL\')', value=False, key='manual_mode')
+    manual_levels_present = 'manual_levels' in st.session_state and st.session_state.manual_levels
+    manual_mode = st.checkbox('Manual mode (YZGRID_TYPE=\'MANUAL\')', value=manual_levels_present, key='manual_mode')
     
     manual_heights = []
     if manual_mode:
-        if 'manual_levels' in st.session_state and st.session_state.manual_levels:
+        if manual_levels_present:
             default_text = '\n'.join(str(h) for h in st.session_state.manual_levels)
+            if not st.session_state.get('_manual_levels_auto_loaded', False):
+                manual_heights = st.session_state.manual_levels
+                st.session_state._manual_levels_auto_loaded = True
         else:
             default_text = ''
         
@@ -89,6 +93,8 @@ with st.sidebar:
             if st.button('Clear'):
                 if 'manual_levels' in st.session_state:
                     del st.session_state.manual_levels
+                if '_manual_levels_auto_loaded' in st.session_state:
+                    del st.session_state._manual_levels_auto_loaded
                 st.rerun()
 
     if st.button("📋 Copy Parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_VER_GRID to clipboard. Paste it in Namelist Editor or Workspace"):

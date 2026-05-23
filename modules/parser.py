@@ -410,7 +410,7 @@ def parse_free_format(content: str) -> dict:
 def _parse_free_text_lines(text: str) -> dict:
     lines = [l.strip() for l in text.split("\n") if l.strip() and not l.strip().startswith("!")]
     result = {"radiosounding_type": None, "radiosounding": None,
-              "forcing_type": None, "forcing": None}
+              "forcing_type": None, "forcing": None, "zhat": None}
     if not lines:
         return result
 
@@ -420,8 +420,12 @@ def _parse_free_text_lines(text: str) -> dict:
         i += 1
 
         if kw == "ZHAT":
+            zhat_vals = []
             while i < len(lines) and lines[i].upper() not in ("CSTN", "RSOU", "ZHAT", "ZFRC", "PFRC"):
+                for token in lines[i].split():
+                    zhat_vals.append(float(token))
                 i += 1
+            result["zhat"] = zhat_vals
         elif kw == "CSTN":
             result["radiosounding_type"] = "CSTN"
             parsed, consumed = _parse_cstn(lines, i)
@@ -530,6 +534,12 @@ def _parse_forcing(lines: List[str], start: int, kw: str) -> Tuple[dict, int]:
 def write_free_format(data: dict) -> str:
     """Generate the free-format text from a parsed data dict."""
     lines = []
+    zhat = data.get("zhat")
+    if zhat:
+        lines.append("ZHAT")
+        for v in zhat:
+            lines.append(f"{v:.7E}")
+
     rs = data.get("radiosounding")
     rt = data.get("radiosounding_type")
 
