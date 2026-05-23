@@ -30,10 +30,10 @@ class NamelistBlock:
 # Public API
 # ==========================================================
 
-def parse_namelist(content: str) -> Dict[str, NamelistBlock]:
+def parse_namelist(content: str) -> Tuple[Dict[str, NamelistBlock], dict]:
     """
-    Parse un fichier Fortran namelist robuste.
-
+    Parse a Fortran namelist and any trailing free-format data.
+    Returns: (Dict of blocks, Dict of free-format data)
     Gère :
       - casse libre
       - séparateur espace ou virgule
@@ -72,13 +72,14 @@ def parse_namelist(content: str) -> Dict[str, NamelistBlock]:
             blocks[block.name] = block
             last_block = block
 
-    # Capture trailing content after the last block
-    if last_block and pos < n:
+    # Capture and parse trailing free-format content ---
+    free_format_data = {}
+    if pos < n:
         trailing = content[pos:].strip()
         if trailing:
-            _attach_comment_lines(last_block, trailing)
+            free_format_data = parse_free_format(content[pos:])
 
-    return blocks
+    return blocks, free_format_data
 
 
 def write_namelist(blocks: Dict[str, NamelistBlock], keys_per_row: int = 1) -> str:

@@ -220,7 +220,7 @@ with st.sidebar:
         st.rerun()
 
     d = st.session_state.free_format_data
-    if st.button("✏️ Generate & Download"):
+    if st.button("✏️ Generate & Download", help="Note: if you came here from Namelist Editor or Workspace, the data are automatically populated in the namelist.", use_container_width=True):
         out = parser.write_free_format(d)
         st.download_button("⬇️ Download free-format text", out, file_name="free_format.txt", mime="text/plain")
 

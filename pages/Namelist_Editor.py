@@ -8,6 +8,8 @@ st.set_page_config(page_title="Namelist Editor", layout="wide")
 
 if 'namelist_blocks' not in st.session_state:
     st.session_state.namelist_blocks = {}
+if 'free_format_data' not in st.session_state:
+    st.session_state.free_format_data = {}
 if 'current_file' not in st.session_state:
     st.session_state.current_file = None
 if 'upload_ver' not in st.session_state:
@@ -313,15 +315,42 @@ def render_namelist_view():
                             st.write(f"• {issue}")
 
                 if results['conditions']:
-                    with st.expander(f"🔴 Condition checks ({len(results['conditions'])})"):
+                    with st.expander(f"❌ Condition checks ({len(results['conditions'])})"):
                         for issue in results['conditions']:
                             st.error(issue)
         else:
             st.info("Load a namelist to run Advise checks")
 
     file_content = parser.write_namelist(st.session_state.namelist_blocks, st.session_state.export_keys_per_row)
+    # Append free-format data if it exists and has content
+    if st.session_state.get('free_format_data'):
+        free_text = parser.write_free_format(st.session_state.free_format_data)
+        if free_text.strip():
+            file_content += "\n" + free_text
+
     with download_placeholder:
-        st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain")
+        st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain", help="Set the number of "
+        "keys per row in ⚙️ Settings to format the downloaded file")
+
+    # Free-format text editable widget ---
+    st.subheader(" ")
+    ff_data = st.session_state.get('free_format_data', {})
+    if ff_data:
+        with st.expander("Free-format data", expanded=bool(st.session_state.get('free_format_data'))):  
+            if st.button("Copy & Edit in 🎈 Radiosoundings and forcing page", key="nav_to_rsou", use_container_width=True):
+                utils.save_copied_params(st.session_state.free_format_data)
+                try:
+                    st.switch_page("pages/Initial_radiosoundings_forcing.py")
+                except Exception as e:
+                    st.error(f"Navigation failed. Ensure the file is in the 'pages/' directory. Error: {e}")
+            current_free_text = parser.write_free_format(ff_data)
+            new_free_text = st.text_area(" ", value=current_free_text, height=1000)
+            if new_free_text.strip() != current_free_text.strip():
+                parsed = parser.parse_free_format(new_free_text)
+                st.session_state.free_format_data = parsed
+                st.rerun()
+
+
 
 def render_upload():
     with st.sidebar:
@@ -331,11 +360,12 @@ def render_upload():
 
         if uploaded_file is not None and not st.session_state.get('_upload_processed', False):
             content = uploaded_file.getvalue().decode("utf-8")
-            blocks = parser.parse_namelist(content)
+            blocks, free_format = parser.parse_namelist(content)
 
-            if blocks:
+            if blocks or  free_format:
                 st.session_state.upload_ver = st.session_state.get('upload_ver', 0) + 1
                 st.session_state.namelist_blocks = blocks
+                st.session_state.free_format_data = free_format
                 st.session_state.current_file = uploaded_file.name
                 st.session_state._upload_processed = True
                 st.success(f"Loaded: {uploaded_file.name}")

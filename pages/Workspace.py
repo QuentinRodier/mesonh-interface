@@ -14,6 +14,8 @@ if 'workspace_modified' not in st.session_state:
     st.session_state.workspace_modified = set()
 if 'selected_file' not in st.session_state:
     st.session_state.selected_file = None
+if 'free_format_data' not in st.session_state:
+    st.session_state.free_format_data = {}
 if 'selected_file_key' not in st.session_state:
     st.session_state.selected_file_key = None
 if 'workspace_tree_state' not in st.session_state:
@@ -98,7 +100,8 @@ def scan_workspace(workspace_path):
                 namelist_files[file].append({
                     'path': full_path,
                     'relative': rel_path,
-                    'blocks': None
+                    'blocks': None,
+                    'free_format': {}
                 })
     
     for file in namelist_files:
@@ -106,10 +109,13 @@ def scan_workspace(workspace_path):
             try:
                 with open(file_info['path'], 'r', encoding='utf-8') as f:
                     content = f.read()
-                    file_info['blocks'] = parser.parse_namelist(content)
+                    blocks, free_format = parser.parse_namelist(content)
+                    file_info['blocks'] = blocks
+                    file_info['free_format'] = free_format
             except Exception as e:
                 file_info['blocks'] = {}
-    
+                file_info['free_format'] = {}
+
     return namelist_files
 
 
@@ -301,7 +307,26 @@ def render_editor(blocks, relative_path):
                                 on_click=paste_nam_ver_grid,
                                 args=(block, block_name, relative_path)
                             )
-
+                        st.subheader(" ")
+        ff_data = st.session_state.get('free_format_data', {})
+        if ff_data:                
+            with st.expander("Free-format data", expanded=bool(st.session_state.get('free_format_data'))):  
+                if st.button("Copy & Edit in 🎈 Radiosoundings and forcing page", key=f"nav_to_rsou_ws_{relative_path}_{block_name}", use_container_width=True):
+                    utils.save_copied_params(st.session_state.free_format_data)
+                    try:
+                        # Adjust this path if your file structure is different
+                        st.switch_page("pages/Initial_radiosoundings_forcing.py")
+                    except Exception as e:
+                        st.error(f"Navigation failed. Ensure the file is in the 'pages/' directory. Error: {annotated_e}")
+                
+                ff_data = st.session_state.get('free_format_data', {})
+                current_free_text = parser.write_free_format(ff_data)
+                new_free_text = st.text_area(" ", value=current_free_text, height=1000)
+                
+                if new_free_text.strip() != current_free_text.strip():
+                    parsed = parser.parse_free_format(new_free_text)
+                    st.session_state.free_format_data = parsed
+                    st.rerun()
     with col_doc:
         st.subheader("📋 User's guide")
         
@@ -361,7 +386,7 @@ def render_editor(blocks, relative_path):
                             st.write(f"• {issue}")
                 
                 if results['conditions']:
-                    with st.expander(f"🔴 Condition checks ({len(results['conditions'])})"):
+                    with st.expander(f"❌ Condition checks ({len(results['conditions'])})"):
                         for issue in results['conditions']:
                             st.error(issue)
         else:
@@ -427,7 +452,8 @@ def render_workspace():
                             file_info = next((fi for fi in st.session_state.workspace_files.get(name, []) if fi['relative'] == content), None)
                             if file_info:
                                 st.session_state.selected_file = file_info
-                                
+                                st.session_state.free_format_data = file_info.get('free_format', {})
+
                                 for file_name, file_list in st.session_state.workspace_files.items():
                                     for fi in file_list:
                                         if fi['relative'] == content:
