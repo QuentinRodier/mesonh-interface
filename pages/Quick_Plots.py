@@ -1,0 +1,269 @@
+import streamlit as st
+import xarray as xr
+import plotly.graph_objects as go
+import numpy as np
+import tempfile
+import os
+
+st.set_page_config(page_title="Quick Plots", layout="wide")
+
+# --- Session State Initialization ---
+if 'datasets_dict' not in st.session_state:
+    st.session_state.datasets_dict = {}
+if 'panels' not in st.session_state:
+    st.session_state.panels = []
+    st.session_state.next_panel_id = 0
+if 'target_panel_id' not in st.session_state:
+    st.session_state.target_panel_id = None 
+if 'new_panel_pos' not in st.session_state:
+    st.session_state.new_panel_pos = 0
+if 'target_panel_selector' not in st.session_state:
+    st.session_state.target_panel_selector = "➕ Create New Panel"
+if 'workspace_path' not in st.session_state:
+    st.session_state.workspace_path = ""
+if 'workspace_nc_files' not in st.session_state:
+    st.session_state.workspace_nc_files = {}
+
+# --- Helper Functions ---
+
+def scan_nc_files(workspace_path):
+    """Scans directory for .nc files and builds a file dictionary."""
+    nc_files = {}
+    if not os.path.exists(workspace_path):
+        return {}
+    
+    for root, dirs, files in os.walk(workspace_path):
+        for file in files:
+            if file.endswith('.nc'):
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, workspace_path)
+                
+                if file not in nc_files:
+                    nc_files[file] = []
+                nc_files[file].append({
+                    'path': full_path,
+                    'relative': rel_path
+                })
+    return nc_files
+
+def load_nc_from_path(full_path, filename):
+    try:
+        ds = xr.open_dataset(full_path)
+        # Calculate relative path if a workspace is active
+        workspace = st.session_state.workspace_path
+        rel_path = os.path.relpath(full_path, workspace) if workspace and os.path.isdir(workspace) else None
+        
+        st.session_state.datasets_dict[filename] = {
+            "ds": ds, 
+            "temp_path": full_path,
+            "original_name": filename,
+            "rel_path": rel_path  # Store the relative path here
+        }
+        st.success(f"Loaded: {filename}")
+    except Exception as e:
+        st.error(f"Error loading {filename}: {e}")
+
+
+def add_trace_to_panel_callback(filename, varname, new_pos):
+    panel_options = {f"Panel {p['id']}": p['id'] for p in st.session_state.panels}
+    panel_options["➕ Create New Panel"] = "new"
+    
+    current_selection = st.session_state.target_panel_selector
+    target_id = panel_options.get(current_selection, "new")
+    
+    if target_id == "new":
+        new_id = st.session_state.next_panel_id
+        st.session_state.next_panel_id += 1
+        st.session_state.panels.insert(int(new_pos), {"id": new_id, "traces": []})
+        target_id = new_id
+    
+    panel_to_update = next((p for p in st.session_state.panels if p["id"] == target_id), None)
+    
+    if panel_to_update is not None:
+        panel_to_update["traces"].append((filename, varname))
+        st.session_state.target_panel_selector = "➕ Create New Panel"
+    else:
+        st.error("Target panel not found.")
+
+def delete_panel(panel_id):
+    st.session_state.panels = [p for p in st.session_state.panels if p["id"] != panel_id]
+    st.rerun()
+
+# --- Sidebar: File Upload & Configuration ---
+with st.sidebar:
+    st.header("Data")
+    
+    # --- PART A: File Uploader ---
+    uploaded_files = st.file_uploader(
+        "Import netCDF files", 
+        type=['nc', 'netcdf'], 
+        accept_multiple_files=True
+    )
+
+    # File Processing Logic (Uploaded)
+    current_uploaded_names = []
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            current_uploaded_names.append(uploaded_file.name)
+            if uploaded_file.name not in st.session_state.datasets_dict:
+                try:
+                    raw = uploaded_file.getvalue()
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.nc')
+                    tmp.write(raw)
+                    tmp.close()
+                    ds = xr.open_dataset(tmp.name)
+                    st.session_state.datasets_dict[uploaded_file.name] = {
+                        "ds": ds, 
+                        "temp_path": tmp.name,
+                        "original_name": uploaded_file.name
+                    }
+                except Exception as e:
+                    st.error(f"Error loading {uploaded_file.name}: {e}")
+
+        # Cleanup deleted files
+        files_to_remove = [f for f in st.session_state.datasets_dict if f not in current_uploaded_names and f not in st.session_state.workspace_nc_files]
+        for f in files_to_remove:
+            path = st.session_state.datasets_dict[f]["temp_path"]
+            if os.path.exists(path): os.unlink(path)
+            del st.session_state.datasets_dict[f]
+        if files_to_remove: st.rerun()
+    workspace_input = st.text_input("or load from workspace path", value=st.session_state.workspace_path, key="ws_path_input")
+    
+    if st.button("🔍 Load Workspace"):
+        if os.path.isdir(workspace_input):
+            st.session_state.workspace_path = workspace_input
+            st.session_state.workspace_nc_files = scan_nc_files(workspace_input)
+            st.success(f"Found {len(st.session_state.workspace_nc_files)} .nc files")
+        else:
+            st.error("Invalid directory")
+
+    if st.session_state.workspace_nc_files:
+        # Build Tree structure for view
+        tree = {}
+        for file_name, file_list in st.session_state.workspace_nc_files.items():
+            for f in file_list:
+                parts = f['relative'].split(os.sep)
+                current = tree
+                for part in parts[:-1]:
+                    if part not in current: current[part] = {}
+                    current = current[part]
+                if parts[-1] not in current: current[parts[-1]] = f['path']
+                else: current[parts[-1]] = f['path'] # Handle same name in same folder
+
+        def render_tree(subtree, prefix="", indent=0):
+            for name in sorted(subtree.keys()):
+                path_key = f"{prefix}/{name}" if prefix else name
+                content = subtree[name]
+                spacer = "&nbsp;&nbsp;&nbsp;&nbsp;" * indent
+                
+                if isinstance(content, dict):
+                    if st.checkbox(f"{spacer}📁 {name}", key=f"tree_dir_{path_key}"):
+                        render_tree(content, path_key, indent + 1)
+                else:
+                    # Content is the absolute path
+                    if st.button(f"{spacer}📄 {name}", key=f"tree_file_{path_key}"):
+                        load_nc_from_path(content, name)
+                        st.rerun()
+
+        with st.expander("📁 Workspace Tree", expanded=True):
+            render_tree(tree)
+
+    st.divider()
+    st.header("Plots layout")
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        grid_rows = st.number_input("Grid Rows", min_value=1, value=2)
+    with col2:
+        grid_cols = st.number_input("Grid Columns", min_value=1, value=2)
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        panel_options = {f"Panel {p['id']}": p['id'] for p in st.session_state.panels}
+        panel_options["➕ Create New Panel"] = "new"
+        st.selectbox("Target Panel", options=list(panel_options.keys()), key="target_panel_selector")
+        current_target_id = panel_options.get(st.session_state.target_panel_selector, "new")
+    if current_target_id == "new":
+        with col2:
+            st.session_state.new_panel_pos = st.number_input("Insert at Index", min_value=0, max_value=len(st.session_state.panels), value=len(st.session_state.panels))
+
+    if st.button("Clear All Plots"):
+        st.session_state.panels = []
+        st.session_state.next_panel_id = 0
+        st.rerun()
+
+# --- Main UI  ---
+col_left, col_right = st.columns([1, 3])
+
+with col_left:
+    st.markdown("### Variables")
+    if st.session_state.datasets_dict:
+        tab_titles = sorted(list(st.session_state.datasets_dict.keys()))
+        tabs = st.tabs(tab_titles)
+
+        for i, tab_name in enumerate(tab_titles):
+            with tabs[i]:
+                file_info = st.session_state.datasets_dict[tab_name]
+                
+                # Check if relative path exists (Workspace loaded) or not (Uploader loaded)
+                rel = file_info.get('rel_path')
+                display_name = f"{file_info['original_name']} ({rel})" if rel else file_info['original_name']
+                
+                st.caption(f"📄 {display_name}")
+                ds_context = file_info["ds"]
+                vnames = sorted(ds_context.data_vars)
+                
+                for vn in vnames:
+                    var = ds_context[vn]
+                    dims_str = ", ".join(var.dims)
+                    st.button(
+                        vn, 
+                        key=f"btn_{tab_name}_{vn}", 
+                        use_container_width=True, 
+                        help=dims_str,
+                        on_click=add_trace_to_panel_callback,
+                        args=(tab_name, vn, st.session_state.new_panel_pos)
+                    )
+    else:
+        st.info("Upload or Load a file to begin")
+
+with col_right:
+    if not st.session_state.panels:
+        st.info("No plots active. Select a variable and click to add to a panel.")
+    else:
+        for r in range(grid_rows):
+            cols = st.columns(grid_cols)
+            for c in range(grid_cols):
+                idx = r * grid_cols + c
+                if idx < len(st.session_state.panels):
+                    with cols[c]:
+                        panel = st.session_state.panels[idx]
+                        p_col1, p_col2 = st.columns([0.8, 0.2])
+                        p_col1.markdown(f"**Panel {panel['id']}**")
+                        if p_col2.button("🗑️", key=f"del_{panel['lyd'] if 'lyd' in panel else panel['id']}"): # Fix for potential key collision
+                            delete_panel(panel['id'])
+                            st.rerun()
+
+                        if panel['traces']:
+                            fig = go.Figure()
+                            has_data = False
+                            for fname, vname in panel['traces']:
+                                if fname in st.session_state.datasets_dict:
+                                    try:
+                                        ds = st.session_state.datasets_dict[fname]["ds"]
+                                        var = ds[vname]
+                                        dims = var.dims
+                                        if len(dims) == 1:
+                                            fig.add_trace(go.Scatter(x=var.coords[dims[0]].values, y=var.values, mode='lines', name=f"{fname}:{vname}"))
+                                            has_data = True
+                                        elif len(dims) >= 2:
+                                            slice_data = var
+                                            for d in dims[2:]: slice_data = slice_data.isel({d: 0})
+                                            if len(slice_data.dims) > 2: slice_data = slice_data.isel({slice_data.dims[2]: 0})
+                                            fig.add_trace(go.Heatmap(z=slice_data.values, x=slice_data.coords[slice_data.dims[1]].values if len(slice_data.dims) > 1 else None, y=slice_data.coords[slice_data.dims[0]].values if len(slice_data.dims) > 0 else None, colorscale='Viridis', name=f"{fname}:{vname}"))
+                                            has_data = True
+                                    except: pass
+                            if has_data:
+                                fig.update_layout(height=300, margin=dict(l=10, r=10, t=30, b=10), showlegend=True)
+                                st.plotly_chart(fig, use_container_width=True)
+                            else: st.caption("No compatible data")
+                        else: st.caption("Empty Panel")
+                else: st.write("")

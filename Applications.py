@@ -10,5 +10,6 @@ pg = st.navigation([
     st.Page("pages/Vertical_Levels.py", title="Vertical Levels", icon="📈"),
     st.Page("pages/Horizontal_Grids.py", title="Horizontal Grids", icon="🌐"),
     st.Page("pages/Initial_radiosoundings_forcing.py", title="Radiosounding and Forcing", icon="🎈"),
+    st.Page("pages/Quick_Plots.py", title="Quick Plots", icon="📊"),
 ])
 pg.run()
