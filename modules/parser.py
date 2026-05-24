@@ -141,7 +141,6 @@ def _parse_block(content: str, start: int):
             elif c == quote_char:
                 in_quote = False
                 quote_char = None
-
             params.append(c)
             i += 1
             continue
@@ -149,15 +148,18 @@ def _parse_block(content: str, start: int):
         if c == "/" and not in_quote:
             i += 1
             break
-
+        if c == "&" and not in_quote:
+            raise ValueError(f"Namelist Syntax Error: Block '&{block_name}' was not closed with a '/'. Please check your namelist before uploading in the interface")
         params.append(c)
         i += 1
 
+    if i >= n:
+        raise ValueError(f"Namelist Syntax Error: Block '&{block_name}' was not closed with a '/'. Please check your namelist before uploading in the interface")
+    
     params_text = "".join(params).strip()
 
     block = NamelistBlock(name=block_name)
     block.raw_lines = [f"&{block.name} {params_text} /"]
-
     block.entries = _parse_assignments(params_text)
 
     return block, i
