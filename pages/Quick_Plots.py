@@ -5,6 +5,9 @@ import numpy as np
 import tempfile
 import os
 
+PLOTLY_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                 '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+
 st.set_page_config(page_title="Quick Plots", layout="wide")
 
 # --- Session State Initialization ---
@@ -74,13 +77,18 @@ def add_trace_to_panel_callback(filename, varname, new_pos):
     if target_id == "new":
         new_id = st.session_state.next_panel_id
         st.session_state.next_panel_id += 1
-        st.session_state.panels.insert(int(new_pos), {"id": new_id, "traces": []})
+        st.session_state.panels.insert(int(new_pos), {
+            "id": new_id, "traces": [],
+            "show_config": False,
+            "colorscale": "Viridis",
+            "invert_cmap": False
+        })
         target_id = new_id
     
     panel_to_update = next((p for p in st.session_state.panels if p["id"] == target_id), None)
     
     if panel_to_update is not None:
-        panel_to_update["traces"].append((filename, varname))
+        panel_to_update["traces"].append((filename, varname, PLOTLY_COLORS[len(panel_to_update["traces"]) % len(PLOTLY_COLORS)]))
         st.session_state.target_panel_selector = "➕ Create New Panel"
     else:
         st.error("Target panel not found.")
@@ -254,16 +262,60 @@ with col_right:
                         names_in_panel = [t[1] for t in panel['traces']]
                         names_str = ", ".join(names_in_panel)
                         title_suffix = f" - {names_str}" if names_in_panel else ""
-                        p_col1, p_col2 = st.columns([0.8, 0.2])
+                        p_col1, p_col2, p_col3 = st.columns([0.6, 0.1, 0.1])
                         p_col1.markdown(f"**Panel {panel['id']}{title_suffix}**")
-                        if p_col2.button("🗑️", key=f"del_panel_{panel['id']}"):
+                        if p_col2.button("🎨", key=f"gear_panel_{panel['id']}"):
+                            panel['show_config'] = not panel['show_config']
+                            st.rerun()
+                        if p_col3.button("🗑️", key=f"del_panel_{panel['id']}"):
                             delete_panel(panel['id'])
                             st.rerun()
+
+                        if panel['show_config']:
+                            with st.expander("Color", expanded=True):
+                                col_cs, col_inv = st.columns([0.7, 0.3])
+                                with col_cs:
+                                    cs = st.selectbox(
+                                        "Colorscale",
+                                        options=["Viridis", "Plasma", "Inferno", "Magma",
+                                                 "Greys", "YlGnBu", "Greens", "YlOrRd", "Bluered", "RdBu",
+                                                 "Reds", "Blues", "Picnic", "Rainbow", "Portland", "Jet",
+                                                 "Hot", "Blackbody", "Earth", "Electric",
+                                                 "RdYlBu", "RdYlGn", "Spectral", "Coolwarm", "PiYG",
+                                                 "PRGn", "BrBG", "PuOr", "RdGy",
+                                                 "Twilight", "HSV"],
+                                        index=["Viridis", "Plasma", "Inferno", "Magma",
+                                               "Greys", "YlGnBu", "Greens", "YlOrRd", "Bluered", "RdBu",
+                                               "Reds", "Blues", "Picnic", "Rainbow", "Portland", "Jet",
+                                               "Hot", "Blackbody", "Earth", "Electric",
+                                               "RdYlBu", "RdYlGn", "Spectral", "Coolwarm", "PiYG",
+                                               "PRGn", "BrBG", "PuOr", "RdGy",
+                                               "Twilight", "HSV"].index(
+                                            panel.get("colorscale", "Viridis")),
+                                        key=f"cs_sel_{panel['id']}",
+                                        format_func=lambda x: x
+                                    )
+                                    panel["colorscale"] = cs
+                                with col_inv:
+                                    inv = st.checkbox("🔄 Invert", value=panel.get("invert_cmap", False),
+                                                      key=f"inv_cb_{panel['id']}")
+                                    panel["invert_cmap"] = inv
+                                for ti, (tfname, tvname, tcolor) in enumerate(panel["traces"]):
+                                    new_color = st.color_picker(
+                                        f"{tvname}",
+                                        value=tcolor,
+                                        key=f"trace_color_{panel['id']}_{ti}"
+                                    )
+                                    panel["traces"][ti] = (tfname, tvname, new_color)
+
+                        colorscale = panel.get("colorscale", "Viridis")
+                        if panel.get("invert_cmap", False):
+                            colorscale = colorscale + "_r"
 
                         if panel['traces']:
                             fig = go.Figure()
                             has_data = False
-                            for fname, vname in panel['traces']:
+                            for fname, vname, trace_color in panel['traces']:
                                 if fname in st.session_state.datasets_dict:
                                     try:
                                         ds = st.session_state.datasets_dict[fname]["ds"]
@@ -276,42 +328,52 @@ with col_right:
                                             if 'time' in d.lower():
                                                 time_dim = d
                                                 break
-                                        is_time_series = time_dim is not None and var.sizes[time_dim] > 1
 
                                         if len(dims) == 1:
-                                            fig.add_trace(go.Scatter(x=var.coords[dims[0]].values, y=var.values, mode='lines', name=f"{fname}:{vname}"))
-                                            has_data = True
-                                        elif time_dim is not None and var.sizes[time_dim] > 1:
-                                            # Heatmap with time on x-axis
-                                            other_dims = [d for d in dims if d != time_dim]
-                                            slice_data = var
-                                            for d in other_dims[1:]:
-                                                slice_data = slice_data.isel({d: 0})
-                                            # Reorder so rows = other_dim, columns = time for Plotly Heatmap
-                                            dims_list = list(slice_data.dims)
-                                            time_pos = dims_list.index(time_dim)
-                                            other_pos = dims_list.index(other_dims[0])
-                                            z_data = np.transpose(slice_data.values, axes=(other_pos, time_pos))
-                                            x_coord = slice_data.coords[time_dim].values
-                                            y_coord = slice_data.coords[other_dims[0]].values
-                                            fig.add_trace(go.Heatmap(
-                                                z=z_data,
-                                                x=x_coord,
-                                                y=y_coord,
-                                                colorscale='Viridis',
-                                                name=f"{fname}:{vname}"
+                                            fig.add_trace(go.Scatter(
+                                                x=var.coords[dims[0]].values,
+                                                y=var.values,
+                                                mode='lines',
+                                                name=f"{fname}:{vname}",
+                                                line=dict(color=trace_color)
                                             ))
                                             has_data = True
                                         else:
-                                            slice_data = var
-                                            for d in dims[2:]: slice_data = slice_data.isel({d: 0})
-                                            if len(slice_data.dims) > 2: slice_data = slice_data.isel({slice_data.dims[2]: 0})
-                                            fig.add_trace(go.Heatmap(z=slice_data.values, x=slice_data.coords[slice_data.dims[1]].values if len(slice_data.dims) > 1 else None, y=slice_data.coords[slice_data.dims[0]].values if len(slice_data.dims) > 0 else None, colorscale='Viridis', name=f"{fname}:{vname}"))
+                                            # Heatmap logic
+                                            has_time = time_dim is not None and var.sizes[time_dim] > 1
+                                            if has_time and len(dims) >= 2:
+                                                other_dims = [d for d in dims if d != time_dim]
+                                                slice_data = var
+                                                for d in other_dims[1:]:
+                                                    slice_data = slice_data.isel({d: 0})
+                                                dims_list = list(slice_data.dims)
+                                                time_pos = dims_list.index(time_dim)
+                                                other_pos = dims_list.index(other_dims[0])
+                                                z_data = np.transpose(slice_data.values, axes=(other_pos, time_pos))
+                                                x_coord = slice_data.coords[time_dim].values
+                                                y_coord = slice_data.coords[other_dims[0]].values
+                                            else:
+                                                slice_data = var
+                                                for d in dims[2:]:
+                                                    slice_data = slice_data.isel({d: 0})
+                                                if len(slice_data.dims) > 2:
+                                                    slice_data = slice_data.isel({slice_data.dims[2]: 0})
+                                                z_data = slice_data.values
+                                                x_coord = slice_data.coords[slice_data.dims[1]].values if len(slice_data.dims) > 1 else None
+                                                y_coord = slice_data.coords[slice_data.dims[0]].values if len(slice_data.dims) > 0 else None
+                                            fig.add_trace(go.Heatmap(
+                                                z=z_data, x=x_coord, y=y_coord,
+                                                colorscale=colorscale,
+                                                name=f"{fname}:{vname}"
+                                            ))
                                             has_data = True
-                                    except: pass
+                                    except:
+                                        pass
                             if has_data:
                                 fig.update_layout(height=300, margin=dict(l=10, r=10, t=30, b=10), showlegend=True)
                                 st.plotly_chart(fig, use_container_width=True)
-                            else: st.caption("No compatible data")
-                        else: st.caption("Empty Panel")
+                            else:
+                                st.caption("No compatible data")
+                        else:
+                            st.caption("Empty Panel")
                 else: st.write("")
