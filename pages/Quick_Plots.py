@@ -184,7 +184,7 @@ with st.sidebar:
     if current_target_id == "new":
         with col2:
             st.session_state.new_panel_pos = st.number_input("Insert at Index", min_value=0, max_value=len(st.session_state.panels), value=len(st.session_state.panels))
-
+    var_cols = st.slider("Variable columns", min_value=1, max_value=6, value=4)
     if st.button("Clear All Plots"):
         st.session_state.panels = []
         st.session_state.next_panel_id = 0
@@ -202,26 +202,41 @@ with col_left:
         for i, tab_name in enumerate(tab_titles):
             with tabs[i]:
                 file_info = st.session_state.datasets_dict[tab_name]
-                
-                # Check if relative path exists (Workspace loaded) or not (Uploader loaded)
                 rel = file_info.get('rel_path')
                 display_name = f"{file_info['original_name']} ({rel})" if rel else file_info['original_name']
-                
                 st.caption(f"📄 {display_name}")
                 ds_context = file_info["ds"]
-                vnames = sorted(ds_context.data_vars)
-                
-                for vn in vnames:
+
+                # Collect dimension signatures
+                dim_groups = {}
+                for vn in ds_context.data_vars:
                     var = ds_context[vn]
-                    dims_str = ", ".join(var.dims)
-                    st.button(
-                        vn, 
-                        key=f"btn_{tab_name}_{vn}", 
-                        use_container_width=True, 
-                        help=dims_str,
-                        on_click=add_trace_to_panel_callback,
-                        args=(tab_name, vn, st.session_state.new_panel_pos)
-                    )
+                    sig = "(" + ", ".join(f"{d}: {var.sizes[d]}" for d in var.dims) + ")"
+                    dim_groups.setdefault(sig, []).append(vn)
+
+                all_sigs = sorted(dim_groups.keys())
+
+                scroll_container = st.container(height=700)
+                with scroll_container:
+                    for sig in all_sigs:
+                        with st.expander(f"{sig} — {len(dim_groups[sig])} vars", expanded=False):
+                            vns = sorted(dim_groups[sig])
+                            for idx in range(0, len(vns), var_cols):
+                                row = st.columns(var_cols)
+                                for j in range(var_cols):
+                                    if idx + j < len(vns):
+                                        vn = vns[idx + j]
+                                        var = ds_context[vn]
+                                        dims_str = ", ".join(f"{d}: {var.sizes[d]}" for d in var.dims)
+                                        with row[j]:
+                                            st.button(
+                                                vn,
+                                                key=f"btn_{tab_name}_{sig}_{vn}",
+                                                use_container_width=True,
+                                                help=dims_str,
+                                                on_click=add_trace_to_panel_callback,
+                                                args=(tab_name, vn, st.session_state.new_panel_pos)
+                                            )
     else:
         st.info("Upload or Load a file to begin")
 
@@ -236,9 +251,12 @@ with col_right:
                 if idx < len(st.session_state.panels):
                     with cols[c]:
                         panel = st.session_state.panels[idx]
+                        names_in_panel = [t[1] for t in panel['traces']]
+                        names_str = ", ".join(names_in_panel)
+                        title_suffix = f" - {names_str}" if names_in_panel else ""
                         p_col1, p_col2 = st.columns([0.8, 0.2])
-                        p_col1.markdown(f"**Panel {panel['id']}**")
-                        if p_col2.button("🗑️", key=f"del_{panel['lyd'] if 'lyd' in panel else panel['id']}"): # Fix for potential key collision
+                        p_col1.markdown(f"**Panel {panel['id']}{title_suffix}**")
+                        if p_col2.button("🗑️", key=f"del_panel_{panel['id']}"):
                             delete_panel(panel['id'])
                             st.rerun()
 
@@ -251,10 +269,40 @@ with col_right:
                                         ds = st.session_state.datasets_dict[fname]["ds"]
                                         var = ds[vname]
                                         dims = var.dims
+
+                                        # Detect time dimension (any dim whose name contains 'time')
+                                        time_dim = None
+                                        for d in dims:
+                                            if 'time' in d.lower():
+                                                time_dim = d
+                                                break
+                                        is_time_series = time_dim is not None and var.sizes[time_dim] > 1
+
                                         if len(dims) == 1:
                                             fig.add_trace(go.Scatter(x=var.coords[dims[0]].values, y=var.values, mode='lines', name=f"{fname}:{vname}"))
                                             has_data = True
-                                        elif len(dims) >= 2:
+                                        elif time_dim is not None and var.sizes[time_dim] > 1:
+                                            # Heatmap with time on x-axis
+                                            other_dims = [d for d in dims if d != time_dim]
+                                            slice_data = var
+                                            for d in other_dims[1:]:
+                                                slice_data = slice_data.isel({d: 0})
+                                            # Reorder so rows = other_dim, columns = time for Plotly Heatmap
+                                            dims_list = list(slice_data.dims)
+                                            time_pos = dims_list.index(time_dim)
+                                            other_pos = dims_list.index(other_dims[0])
+                                            z_data = np.transpose(slice_data.values, axes=(other_pos, time_pos))
+                                            x_coord = slice_data.coords[time_dim].values
+                                            y_coord = slice_data.coords[other_dims[0]].values
+                                            fig.add_trace(go.Heatmap(
+                                                z=z_data,
+                                                x=x_coord,
+                                                y=y_coord,
+                                                colorscale='Viridis',
+                                                name=f"{fname}:{vname}"
+                                            ))
+                                            has_data = True
+                                        else:
                                             slice_data = var
                                             for d in dims[2:]: slice_data = slice_data.isel({d: 0})
                                             if len(slice_data.dims) > 2: slice_data = slice_data.isel({slice_data.dims[2]: 0})
