@@ -39,8 +39,22 @@ def compute_levels(kmax, zmax, zgrd, ztop, sgrd, stop):
             rz[i+1] = rz[i] + ztop
     return rz[1:kmax+1]
 
+def get_ref_data(ref_params):
+    """Helper to extract levels, mesh, and indices from reference parameters."""
+    if ref_params.get('mode') == 'MANUAL' and 'manual_levels' in ref_params:
+        ref_levels = ref_params['manual_levels']
+    else:
+        ref_levels = compute_levels(
+            ref_params['kmax'], ref_params['zmax'], ref_params['zgrd'], 
+            ref_params['ztop'], ref_params['mu_sgrd'], ref_params['mu_stop']
+        )
+    
+    ref_mesh = [ref_levels[i] - ref_levels[i-1] if i > 0 else 0 for i in range(len(ref_levels))]
+    ref_idx = list(range(1, len(ref_levels)+1))
+    return ref_levels, ref_mesh, ref_idx
+
 with st.sidebar:
-    st.header('Parameters')
+    st.header('Set the vertical grid')
     KMAX = st.number_input('NKMAX', value=90, min_value=3, max_value=1000)
     st.session_state.kmax = KMAX
     ZMAX = st.slider('ZZMAX_STRGRD (m)', 0, 15000, int(st.session_state.zmax), key='zmax_slider')
@@ -59,8 +73,22 @@ with st.sidebar:
         'ztop': ZTOP, 'sgrd': SGRD, 'stop': STOP
     }
 
+    if st.button("📋 Copy Parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_VER_GRID to clipboard. Paste it in Namelist Editor or Workspace"):
+        # Mapping entre les variables de l'UI et les clés réelles de la namelist
+        params_to_copy = {
+            'NKMAX': KMAX,
+            'ZZMAX_STRGRD': ZMAX,
+            'ZDZGRD': ZGRD,
+            'ZDZTOP': ZTOP,
+            'ZSTRGRD': SGRD,
+            'ZSTRTOP': STOP,
+            'YZGRID_TYPE': 'FUNCTN'
+        }
+        utils.save_copied_params(params_to_copy)
+        st.success("Parameters copied!")
+
     manual_levels_present = 'manual_levels' in st.session_state and st.session_state.manual_levels
-    manual_mode = st.checkbox('Manual mode (YZGRID_TYPE=\'MANUAL\')', value=manual_levels_present, key='manual_mode')
+    manual_mode = st.checkbox('Enter levels by hand (YZGRID_TYPE=\'MANUAL\')', value=manual_levels_present, key='manual_mode')
     
     manual_heights = []
     if manual_mode:
@@ -97,40 +125,32 @@ with st.sidebar:
                     del st.session_state._manual_levels_auto_loaded
                 st.rerun()
 
-    if st.button("📋 Copy Parameters to clipboard", use_container_width=True, help="Copy the above parameters of NAM_VER_GRID to clipboard. Paste it in Namelist Editor or Workspace"):
-        # Mapping entre les variables de l'UI et les clés réelles de la namelist
-        params_to_copy = {
-            'NKMAX': KMAX,
-            'ZZMAX_STRGRD': ZMAX,
-            'ZDZGRD': ZGRD,
-            'ZDZTOP': ZTOP,
-            'ZSTRGRD': SGRD,
-            'ZSTRTOP': STOP,
-            'YZGRID_TYPE': 'FUNCTN'
-        }
-        utils.save_copied_params(params_to_copy)
-        st.success("Parameters copied!")
-
     st.divider()
-    st.header('Settings')
+    st.header('Compare 2 vertical grids')
     
     compare_mode = st.checkbox('Compare mode', value=False, key='compare_mode')
     
     if compare_mode:
         if st.button('Set Current as Reference'):
-            st.session_state.reference_params = current_params.copy()
+            # Capture the exact state of current parameters + mode + manual levels
+            ref_state = current_params.copy()
+            if manual_mode and manual_heights:
+                ref_state['mode'] = 'MANUAL'
+                ref_state['manual_levels'] = manual_heights
+            else:
+                ref_state['mode'] = 'FUNCTN'
+            
+            st.session_state.reference_params = ref_state
             st.success('Reference set!')
         
         if 'reference_params' in st.session_state:
             st.session_state.compare_params = st.session_state.reference_params
     
+    st.divider()
+    st.header('Settings')
     show_zmax_line = st.checkbox('Show ZZMAX_STRGRD line', value=True, key='show_zmax_line')
 
-current_params = {
-    'kmax': KMAX, 'zmax': ZMAX, 'zgrd': ZGRD, 
-'ztop': ZTOP, 'sgrd': SGRD, 'stop': STOP
-    }
-
+# Calculation of 'Current' levels
 if manual_mode and manual_heights:
     levels = manual_heights
     mesh = [levels[i] - levels[i-1] if i > 0 else 0 for i in range(len(levels))]
@@ -144,7 +164,6 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     fig1 = go.Figure()
-    
     colors = ['lightblue', 'red']
     color_idx = 0
     
@@ -155,8 +174,13 @@ with col1:
     ))
     
     if compare_mode and st.session_state.reference_params:
-        ref_params = st.session_state.reference_params
-        ref_levels = compute_levels(ref_params['kmax'], ref_params['zmax'], ref_params['zgrd'], ref_params['ztop'], ref_params['sgrd'], ref_params['stop'])
+        ref_p = st.session_state.reference_params
+        # Use the helper to determine if we use manual or computed levels for reference
+        if ref_p.get('mode') == 'MANUAL' and 'manual_levels' in ref_p:
+            ref_levels = ref_p['manual_levels']
+        else:
+            ref_levels = compute_levels(ref_p['kmax'], ref_p['zmax'], ref_p['zgrd'], ref_p['ztop'], ref_p['sgrd'], ref_p['stop'])
+        
         ref_mesh = [ref_levels[i] - ref_levels[i-1] if i > 0 else 0 for i in range(len(ref_levels))]
         ref_idx = list(range(1, len(ref_levels)+1))
         
@@ -188,8 +212,12 @@ with col2:
     ))
     
     if compare_mode and st.session_state.reference_params:
-        ref_params = st.session_state.reference_params
-        ref_levels = compute_levels(ref_params['kmax'], ref_params['zmax'], ref_params['zgrd'], ref_params['ztop'], ref_params['sgrd'], ref_params['stop'])
+        ref_p = st.session_state.reference_params
+        if ref_p.get('mode') == 'MANUAL' and 'manual_levels' in ref_p:
+            ref_levels = ref_p['manual_levels']
+        else:
+            ref_levels = compute_levels(ref_p['kmax'], ref_p['zmax'], ref_p['zgrd'], ref_p['ztop'], ref_p['sgrd'], ref_p['stop'])
+        
         ref_mesh = [ref_levels[i] - ref_levels[i-1] if i > 0 else 0 for i in range(len(ref_levels))]
         ref_idx = list(range(1, len(ref_levels)+1))
         
@@ -216,36 +244,26 @@ if 'previous_params' not in st.session_state:
     st.session_state.previous_params = None
 
 if compare_mode and st.session_state.reference_params:
-    ref_params = st.session_state.reference_params
-    ref_levels = compute_levels(ref_params['kmax'], ref_params['zmax'], ref_params['zgrd'], ref_params['ztop'], ref_params['sgrd'], ref_params['stop'])
+    ref_p = st.session_state.reference_params
+    if ref_p.get('mode') == 'MANUAL' and 'manual_levels' in ref_p:
+        ref_levels = ref_p['manual_levels']
+    else:
+        ref_levels = compute_levels(ref_p['kmax'], ref_p['zmax'], ref_p['zgrd'], ref_p['ztop'], ref_p['sgrd'], ref_p['stop'])
+    
     ref_mesh = [ref_levels[i] - ref_levels[i-1] if i > 0 else 0 for i in range(len(ref_levels))]
     ref_idx = list(range(1, len(ref_levels)+1))
     
     col_ref, col_curr = st.columns(2)
-    
     with col_ref:
         st.subheader('Reference Levels Table')
-        ref_df = pd.DataFrame({
-            'Level index': ref_idx,
-            'Height (m)': ref_levels,
-            'Mesh size (m)': ref_mesh
-        })
+        ref_df = pd.DataFrame({'Level index': ref_idx, 'Height (m)': ref_levels, 'Mesh size (m)': ref_mesh})
         st.dataframe(ref_df, use_container_width=True)
-    
     with col_curr:
         st.subheader('Current Levels Table')
-        curr_df = pd.DataFrame({
-            'Level index': idx,
-            'Height (m)': levels,
-            'Mesh size (m)': mesh
-        })
+        curr_df = pd.DataFrame({'Level index': idx, 'Height (m)': levels, 'Mesh size (m)': mesh})
         st.dataframe(curr_df, use_container_width=True)
 else:
-    df = pd.DataFrame({
-        'Level index': idx,
-        'Height (m)': levels,
-        'Mesh size (m)': mesh
-    })
+    df = pd.DataFrame({'Level index': idx, 'Height (m)': levels, 'Mesh size (m)': mesh})
     st.subheader('Levels Table')
     st.dataframe(df, use_container_width=True)
 
@@ -267,5 +285,4 @@ with col_res2:
     st.text(f"Number of vertical levels above: {count_above}")
 
 st.divider()
-
 st.html(docs.render_rst(docs.find_docs('NAM_VER_GRID'), block_name='NAM_VER_GRID'))
