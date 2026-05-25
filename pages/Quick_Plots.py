@@ -81,7 +81,9 @@ def add_trace_to_panel_callback(filename, varname, new_pos):
             "id": new_id, "traces": [],
             "show_config": False,
             "colorscale": "Viridis",
-            "invert_cmap": False
+            "invert_cmap": False,
+            "z_min": None,
+            "z_max": None
         })
         target_id = new_id
     
@@ -272,6 +274,31 @@ with col_right:
                             st.rerun()
 
                         if panel['show_config']:
+                            # Check if any trace in this panel is a heatmap (dims >= 2)
+                            has_heatmap_trace = False
+                            for f_name, v_name, _ in panel['traces']:
+                                if f_name in st.session_state.datasets_dict:
+                                    if len(st.session_state.datasets_dict[f_name]["ds"][v_name].dims) >= 2:
+                                        has_heatmap_trace = True
+                                        break
+                            
+                            if has_heatmap_trace:
+                                with st.expander("Colormap Range", expanded=True):
+                                    # Use panel values as the source for the widget
+                                    # We use a default 0.0/1.0 if the value is None to prevent errors
+                                    z_min_val = float(panel.get('z_min') if panel.get('z_min') is not None else 0.0)
+                                    z_max_val = float(panel.get('z_max') if panel.get('z_max') is not None else 1.0)
+                                    
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        new_z_min = st.number_input("Min", value=z_min_val, key=f"zmin_ui_{panel['id']}", format="%.8f")
+                                    with col2:
+                                        new_z_max = st.number_input("Max", value=z_max_val, key=f"zmax_ui_{panel['id']}", format="%.8f")
+                                    
+                                    # Sync the widget back to the panel state
+                                    panel['z_min'] = new_z_min
+                                    panel['z_max'] = new_z_max
+
                             with st.expander("Color", expanded=True):
                                 col_cs, col_inv = st.columns([0.7, 0.3])
                                 with col_cs:
@@ -361,11 +388,23 @@ with col_right:
                                                 z_data = slice_data.values
                                                 x_coord = slice_data.coords[slice_data.dims[1]].values if len(slice_data.dims) > 1 else None
                                                 y_coord = slice_data.coords[slice_data.dims[0]].values if len(slice_data.dims) > 0 else None
-                                            fig.add_trace(go.Heatmap(
-                                                z=z_data, x=x_coord, y=y_coord,
-                                                colorscale=colorscale,
-                                                name=f"{fname}:{vname}"
-                                            ))
+                                            heatmap_kwargs = {
+                                            "z": z_data, 
+                                            "x": x_coord, 
+                                            "y": y_coord,
+                                            "colorscale": colorscale,
+                                            "name": f"{fname}:{vname}"
+                                            }
+                                            panel['z_min'] = slice_data.values.min() if panel.get('z_min') is None else panel['z_min']
+                                            panel['z_max'] = slice_data.values.max() if panel.get('z_max') is None else panel['z_max']
+                                            
+                                            # Apply zmin/zmax if they have been set in the panel
+                                            if panel.get('z_min') is not None:
+                                                heatmap_kwargs["zmin"] = panel['z_min']
+                                            if panel.get('z_max') is not None:
+                                                heatmap_kwargs["zmax"] = panel['z_max']
+                                            
+                                            fig.add_trace(go.Heatmap(**heatmap_kwargs))
                                             has_data = True
                                     except:
                                         pass
