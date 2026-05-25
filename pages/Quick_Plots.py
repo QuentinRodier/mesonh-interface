@@ -238,12 +238,24 @@ with col_left:
                                         vn = vns[idx + j]
                                         var = ds_context[vn]
                                         dims_str = ", ".join(f"{d}: {var.sizes[d]}" for d in var.dims)
+                                        var = ds_context[vn]
+
+                                        # 1. Build the dimension string (e.g., "lat(100), lon(200)")
+                                        dim_info = ", ".join([f"{d}({var.sizes[d]})" for d in var.dims])
+                                        # 2. Build the attribute string (e.g., "units: m/s, long_name: wind_speed")
+                                        attr_list = []
+                                        for k, v in var.attrs.items():
+                                            # We cast v to str to handle non-string metadata safely
+                                            attr_list.append(f"{k}: {v}")
+                                        attr_info = "; ".join(attr_list) if attr_list else ""
+                                        tooltip_str = f"{attr_info} |\n Dimensions: {dim_info}"
+
                                         with row[j]:
                                             st.button(
                                                 vn,
                                                 key=f"btn_{tab_name}_{sig}_{vn}",
                                                 use_container_width=True,
-                                                help=dims_str,
+                                                help=tooltip_str,
                                                 on_click=add_trace_to_panel_callback,
                                                 args=(tab_name, vn, st.session_state.new_panel_pos)
                                             )
@@ -397,7 +409,7 @@ with col_right:
                                             }
                                             panel['z_min'] = slice_data.values.min() if panel.get('z_min') is None else panel['z_min']
                                             panel['z_max'] = slice_data.values.max() if panel.get('z_max') is None else panel['z_max']
-                                            
+
                                             # Apply zmin/zmax if they have been set in the panel
                                             if panel.get('z_min') is not None:
                                                 heatmap_kwargs["zmin"] = panel['z_min']
