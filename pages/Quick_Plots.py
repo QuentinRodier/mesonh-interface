@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import numpy as np
 import tempfile
 import os
+import netCDF4 as nc
 
 PLOTLY_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
                  '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
@@ -29,6 +30,40 @@ if 'workspace_nc_files' not in st.session_state:
 
 # --- Helper Functions ---
 
+def discover_groups(filepath):
+    """Return sorted list of all group paths in a netCDF file.
+    Root group is represented as empty string ''."""
+    def _walk(parent, current_path):
+        paths = [current_path]
+        for name in parent.groups.keys():
+            child = parent.groups[name]
+            child_path = f"{current_path}/{name}" if current_path else name
+            paths.extend(_walk(child, child_path))
+        return paths
+    with nc.Dataset(filepath, 'r') as root:
+        return sorted(_walk(root, ""))
+
+def open_dataset_with_groups(filepath):
+    """Open a netCDF file and return (root_ds, ds_dict, groups, var_to_group).
+    
+    - ds_dict maps group path -> xr.Dataset ('' for root)
+    - groups: list of group paths
+    - var_to_group: maps qualified_name -> (group_path, short_name)
+    """
+    groups = discover_groups(filepath)
+    ds_dict = {}
+    for gp in groups:
+        ds_dict[gp] = xr.open_dataset(filepath, group=gp) if gp else xr.open_dataset(filepath)
+    
+    var_to_group = {}
+    for gp in groups:
+        gds = ds_dict[gp]
+        for vn in gds.data_vars:
+            qualified = vn if not gp else f"{gp}/{vn}"
+            var_to_group[qualified] = (gp, vn)
+    
+    return ds_dict[""], ds_dict, groups, var_to_group
+
 def scan_nc_files(workspace_path):
     """Scans directory for .nc files and builds a file dictionary."""
     nc_files = {}
@@ -49,22 +84,36 @@ def scan_nc_files(workspace_path):
                 })
     return nc_files
 
-def load_nc_from_path(full_path, filename):
+def load_nc_from_path(full_path, file_key, display_name=None):
     try:
-        ds = xr.open_dataset(full_path)
+        ds, ds_dict, groups, var_to_group = open_dataset_with_groups(full_path)
         # Calculate relative path if a workspace is active
         workspace = st.session_state.workspace_path
         rel_path = os.path.relpath(full_path, workspace) if workspace and os.path.isdir(workspace) else None
         
-        st.session_state.datasets_dict[filename] = {
+        if display_name is None:
+            display_name = os.path.basename(full_path)
+        
+        # Ensure unique key
+        unique_key = file_key
+        if unique_key in st.session_state.datasets_dict:
+            counter = 1
+            while f"{file_key}_{counter}" in st.session_state.datasets_dict:
+                counter += 1
+            unique_key = f"{file_key}_{counter}"
+        
+        st.session_state.datasets_dict[unique_key] = {
             "ds": ds, 
+            "ds_dict": ds_dict,
+            "groups": groups,
+            "var_to_group": var_to_group,
             "temp_path": full_path,
-            "original_name": filename,
-            "rel_path": rel_path  # Store the relative path here
+            "original_name": display_name,
+            "rel_path": rel_path
         }
-        st.success(f"Loaded: {filename}")
+        st.success(f"Loaded: {display_name}")
     except Exception as e:
-        st.error(f"Error loading {filename}: {e}")
+        st.error(f"Error loading {file_key}: {e}")
 
 
 def add_trace_to_panel_callback(filename, varname, new_pos):
@@ -121,9 +170,12 @@ with st.sidebar:
                     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.nc')
                     tmp.write(raw)
                     tmp.close()
-                    ds = xr.open_dataset(tmp.name)
+                    ds, ds_dict, groups, var_to_group = open_dataset_with_groups(tmp.name)
                     st.session_state.datasets_dict[uploaded_file.name] = {
                         "ds": ds, 
+                        "ds_dict": ds_dict,
+                        "groups": groups,
+                        "var_to_group": var_to_group,
                         "temp_path": tmp.name,
                         "original_name": uploaded_file.name
                     }
@@ -157,8 +209,7 @@ with st.sidebar:
                 for part in parts[:-1]:
                     if part not in current: current[part] = {}
                     current = current[part]
-                if parts[-1] not in current: current[parts[-1]] = f['path']
-                else: current[parts[-1]] = f['path'] # Handle same name in same folder
+                current[parts[-1]] = f
 
         def render_tree(subtree, prefix="", indent=0):
             for name in sorted(subtree.keys()):
@@ -166,13 +217,14 @@ with st.sidebar:
                 content = subtree[name]
                 spacer = "&nbsp;&nbsp;&nbsp;&nbsp;" * indent
                 
-                if isinstance(content, dict):
+                if isinstance(content, dict) and 'path' not in content:
                     if st.checkbox(f"{spacer}📁 {name}", key=f"tree_dir_{path_key}"):
                         render_tree(content, path_key, indent + 1)
                 else:
-                    # Content is the absolute path
+                    file_path = content['path']
+                    file_key = content['relative']
                     if st.button(f"{spacer}📄 {name}", key=f"tree_file_{path_key}"):
-                        load_nc_from_path(content, name)
+                        load_nc_from_path(file_path, file_key, display_name=name)
                         st.rerun()
 
         with st.expander("📁 Workspace Tree", expanded=True):
@@ -216,19 +268,30 @@ with col_left:
                 display_name = f"{file_info['original_name']} ({rel})" if rel else file_info['original_name']
                 st.caption(f"📄 {display_name}")
                 ds_context = file_info["ds"]
+                ds_dict = file_info.get("ds_dict", {"": ds_context})
+                groups = file_info.get("groups", [""])
 
-                # Collect dimension signatures
-                dim_groups = {}
-                for vn in ds_context.data_vars:
-                    var = ds_context[vn]
-                    sig = "(" + ", ".join(f"{d}: {var.sizes[d]}" for d in var.dims) + ")"
-                    dim_groups.setdefault(sig, []).append(vn)
+                # Build hierarchical group tree from flat group paths
+                group_tree = {}
+                for gp in groups:
+                    if not gp:
+                        continue
+                    parts = gp.split('/')
+                    node = group_tree
+                    for part in parts:
+                        if part not in node:
+                            node[part] = {}
+                        node = node[part]
 
-                all_sigs = sorted(dim_groups.keys())
-
-                scroll_container = st.container(height=700)
-                with scroll_container:
-                    for sig in all_sigs:
+                def render_group_vars(group_ds, group_path):
+                    if not group_ds or not group_ds.data_vars:
+                        return
+                    dim_groups = {}
+                    for vn in group_ds.data_vars:
+                        var = group_ds[vn]
+                        sig = "(" + ", ".join(f"{d}: {var.sizes[d]}" for d in var.dims) + ")"
+                        dim_groups.setdefault(sig, []).append(vn)
+                    for sig in sorted(dim_groups.keys()):
                         with st.expander(f"{sig} — {len(dim_groups[sig])} vars", expanded=False):
                             vns = sorted(dim_groups[sig])
                             for idx in range(0, len(vns), var_cols):
@@ -236,29 +299,49 @@ with col_left:
                                 for j in range(var_cols):
                                     if idx + j < len(vns):
                                         vn = vns[idx + j]
-                                        var = ds_context[vn]
-                                        dims_str = ", ".join(f"{d}: {var.sizes[d]}" for d in var.dims)
-                                        var = ds_context[vn]
-
-                                        # 1. Build the dimension string (e.g., "lat(100), lon(200)")
+                                        qualified_vn = vn if not group_path else f"{group_path}/{vn}"
+                                        var = group_ds[vn]
                                         dim_info = ", ".join([f"{d}({var.sizes[d]})" for d in var.dims])
-                                        # 2. Build the attribute string (e.g., "units: m/s, long_name: wind_speed")
                                         attr_list = []
                                         for k, v in var.attrs.items():
-                                            # We cast v to str to handle non-string metadata safely
                                             attr_list.append(f"{k}: {v}")
                                         attr_info = "; ".join(attr_list) if attr_list else ""
                                         tooltip_str = f"{attr_info} |\n Dimensions: {dim_info}"
-
                                         with row[j]:
                                             st.button(
                                                 vn,
-                                                key=f"btn_{tab_name}_{sig}_{vn}",
+                                                key=f"btn_{tab_name}_{sig}_{group_path}_{vn}",
                                                 use_container_width=True,
                                                 help=tooltip_str,
                                                 on_click=add_trace_to_panel_callback,
-                                                args=(tab_name, vn, st.session_state.new_panel_pos)
+                                                args=(tab_name, qualified_vn, st.session_state.new_panel_pos)
                                             )
+
+                def render_group_tree(subtree, parent_path):
+                    for name in sorted(subtree.keys()):
+                        # Flatten chains where a group has no data vars and exactly one child
+                        path_parts = [name]
+                        cur_subtree = subtree[name]
+                        cur_path = f"{parent_path}/{name}" if parent_path else name
+                        while True:
+                            cur_ds = ds_dict.get(cur_path)
+                            has_vars = cur_ds is not None and bool(cur_ds.data_vars)
+                            if has_vars or len(cur_subtree) != 1:
+                                break
+                            only_name = next(iter(cur_subtree))
+                            path_parts.append(only_name)
+                            cur_path = f"{cur_path}/{only_name}"
+                            cur_subtree = cur_subtree[only_name]
+                        label = f"📁 {'/'.join(path_parts)}"
+                        with st.expander(label, expanded=False):
+                            render_group_vars(ds_dict.get(cur_path), cur_path)
+                            render_group_tree(cur_subtree, cur_path)
+
+                scroll_container = st.container(height=700)
+                with scroll_container:
+                    render_group_vars(ds_context, "")
+                    if group_tree:
+                        render_group_tree(group_tree, "")
     else:
         st.info("Upload or Load a file to begin")
 
@@ -290,7 +373,16 @@ with col_right:
                             has_heatmap_trace = False
                             for f_name, v_name, _ in panel['traces']:
                                 if f_name in st.session_state.datasets_dict:
-                                    if len(st.session_state.datasets_dict[f_name]["ds"][v_name].dims) >= 2:
+                                    fi = st.session_state.datasets_dict[f_name]
+                                    ds_dict = fi.get("ds_dict", {"": fi["ds"]})
+                                    var_map = fi.get("var_to_group", {})
+                                    if v_name in var_map:
+                                        gp, sn = var_map[v_name]
+                                        test_ds = ds_dict[gp]
+                                    else:
+                                        test_ds = fi["ds"]
+                                        sn = v_name
+                                    if len(test_ds[sn].dims) >= 2:
                                         has_heatmap_trace = True
                                         break
                             
@@ -354,12 +446,23 @@ with col_right:
                         if panel['traces']:
                             fig = go.Figure()
                             has_data = False
+
                             for fname, vname, trace_color in panel['traces']:
                                 if fname in st.session_state.datasets_dict:
                                     try:
-                                        ds = st.session_state.datasets_dict[fname]["ds"]
-                                        var = ds[vname]
+                                        file_info = st.session_state.datasets_dict[fname]
+                                        ds_dict = file_info.get("ds_dict", {"": file_info["ds"]})
+                                        var_map = file_info.get("var_to_group", {})
+                                        if vname in var_map:
+                                            group_path, short_name = var_map[vname]
+                                            ds = ds_dict[group_path]
+                                        else:
+                                            ds = file_info["ds"]
+                                            short_name = vname
+                                        var = ds[short_name]
                                         dims = var.dims
+                                        full_label = f"{fname}:{vname}"
+                                        legend_name = vname.split('/')[-1]
 
                                         # Detect time dimension (any dim whose name contains 'time')
                                         time_dim = None
@@ -373,7 +476,8 @@ with col_right:
                                                 x=var.coords[dims[0]].values,
                                                 y=var.values,
                                                 mode='lines',
-                                                name=f"{fname}:{vname}",
+                                                name=legend_name,
+                                                hovertemplate=f"<b>{full_label}</b><br>%{{x}}<br>%{{y}}<extra></extra>",
                                                 line=dict(color=trace_color)
                                             ))
                                             has_data = True
@@ -405,7 +509,8 @@ with col_right:
                                             "x": x_coord, 
                                             "y": y_coord,
                                             "colorscale": colorscale,
-                                            "name": f"{fname}:{vname}"
+                                            "name": legend_name,
+                                            "hovertemplate": f"<b>{full_label}</b><br>x: %{{x}}<br>y: %{{y}}<br>z: %{{z}}<extra></extra>"
                                             }
                                             panel['z_min'] = slice_data.values.min() if panel.get('z_min') is None else panel['z_min']
                                             panel['z_max'] = slice_data.values.max() if panel.get('z_max') is None else panel['z_max']
