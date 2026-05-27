@@ -27,6 +27,12 @@ if 'workspace_path' not in st.session_state:
     st.session_state.workspace_path = ""
 if 'workspace_nc_files' not in st.session_state:
     st.session_state.workspace_nc_files = {}
+if 'var_layout_weight' not in st.session_state:
+    st.session_state.var_layout_weight = 1
+if 'var_layout_height' not in st.session_state:
+    st.session_state.var_layout_height = 400
+if 'layout_mode' not in st.session_state:
+    st.session_state.layout_mode = "Variables on top"
 
 # --- Helper Functions ---
 
@@ -234,7 +240,7 @@ with st.sidebar:
     st.header("Plots layout")
     col1, col2 = st.columns([1, 1])
     with col1:
-        grid_rows = st.number_input("Grid Rows", min_value=1, value=2)
+        grid_rows = st.number_input("Grid Rows", min_value=1, value=20)
     with col2:
         grid_cols = st.number_input("Grid Columns", min_value=1, value=2)
     col1, col2 = st.columns([1, 1])
@@ -246,14 +252,26 @@ with st.sidebar:
     if current_target_id == "new":
         with col2:
             st.session_state.new_panel_pos = st.number_input("Insert at Index", min_value=0, max_value=len(st.session_state.panels), value=len(st.session_state.panels))
-    var_cols = st.slider("Variable columns", min_value=1, max_value=6, value=4)
+    
     if st.button("Clear All Plots"):
         st.session_state.panels = []
         st.session_state.next_panel_id = 0
         st.rerun()
+    
+    st.divider()
+    st.header("Variables layout")
+    var_cols = st.slider("Number of columns-variables", min_value=1, max_value=10, value=6)
+    st.session_state.layout_mode = st.radio("Position", ["Side by side", "Variables on top"], index=0 if st.session_state.layout_mode == "Side by side" else 1)
+    st.session_state.var_layout_weight = st.slider("Width (if side by side)", min_value=1, max_value=5, value=st.session_state.var_layout_weight)
+    st.session_state.var_layout_height = st.slider("Height", min_value=100, max_value=2000, value=st.session_state.var_layout_height)
 
 # --- Main UI  ---
-col_left, col_right = st.columns([1, 3])
+_var_w = st.session_state.var_layout_weight
+if st.session_state.layout_mode == "Side by side":
+    col_left, col_right = st.columns([_var_w, 4])
+else:
+    col_left = st.container()
+    col_right = st.container()
 
 with col_left:
     st.markdown("### Variables")
@@ -289,7 +307,8 @@ with col_left:
                     dim_groups = {}
                     for vn in group_ds.data_vars:
                         var = group_ds[vn]
-                        sig = "(" + ", ".join(f"{d}: {var.sizes[d]}" for d in var.dims) + ")"
+                        ndim = len(var.dims)
+                        sig = f"{ndim}D"
                         dim_groups.setdefault(sig, []).append(vn)
                     for sig in sorted(dim_groups.keys()):
                         with st.expander(f"{sig} — {len(dim_groups[sig])} vars", expanded=False):
@@ -337,7 +356,7 @@ with col_left:
                             render_group_vars(ds_dict.get(cur_path), cur_path)
                             render_group_tree(cur_subtree, cur_path)
 
-                scroll_container = st.container(height=700)
+                scroll_container = st.container(height=st.session_state.var_layout_height)
                 with scroll_container:
                     render_group_vars(ds_context, "")
                     if group_tree:
