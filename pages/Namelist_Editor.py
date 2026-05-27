@@ -395,7 +395,12 @@ def render_upload():
         if show_delete_keys != st.session_state.show_delete_keys:
             st.session_state.show_delete_keys = show_delete_keys
             st.rerun()
-        st.button("A→Z", key="btn_sort", disabled=True)
+        if st.button("A→Z", key="btn_sort"):
+            if st.session_state.namelist_blocks:
+                # Sort the dictionary by keys (block names) alphabetically
+                sorted_blocks = dict(sorted(st.session_state.namelist_blocks.items()))
+                st.session_state.namelist_blocks = sorted_blocks
+                st.rerun()
         st.selectbox("Download: keys per row", [1, 2, 3, 4], key="export_keys_per_row", width=150)
 
         st.divider()

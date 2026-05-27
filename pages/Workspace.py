@@ -506,6 +506,12 @@ def render_workspace():
             if show_delete_keys != st.session_state.show_delete_keys:
                 st.session_state.show_delete_keys = show_delete_keys
                 st.rerun()
+            if st.button("A→Z", key="btn_sort"):
+                if st.session_state.selected_file and st.session_state.selected_file.get('blocks'):
+                    # Sort the dictionary by keys (block names) alphabetically
+                    sorted_blocks = dict(sorted(st.session_state.selected_file['blocks'].items()))
+                    st.session_state.selected_file['blocks'] = sorted_blocks
+                    st.rerun()
             
             st.divider()
             if st.session_state.selected_file:
