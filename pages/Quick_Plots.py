@@ -31,6 +31,8 @@ if 'var_layout_weight' not in st.session_state:
     st.session_state.var_layout_weight = 1
 if 'var_layout_height' not in st.session_state:
     st.session_state.var_layout_height = 400
+if 'plots_layout_height' not in st.session_state:
+    st.session_state.plots_layout_height = 300
 if 'layout_mode' not in st.session_state:
     st.session_state.layout_mode = "Variables on top"
 
@@ -258,6 +260,8 @@ with st.sidebar:
         st.session_state.next_panel_id = 0
         st.rerun()
     
+    st.session_state.plots_layout_height = st.slider("Graphs Height", min_value=100, max_value=2000, value=st.session_state.plots_layout_height)
+
     st.divider()
     st.header("Variables layout")
     var_cols = st.slider("Number of columns-variables", min_value=1, max_value=10, value=6)
@@ -465,6 +469,7 @@ with col_right:
                         if panel['traces']:
                             fig = go.Figure()
                             has_data = False
+                            first_trace_info = None
 
                             for fname, vname, trace_color in panel['traces']:
                                 if fname in st.session_state.datasets_dict:
@@ -483,6 +488,11 @@ with col_right:
                                         full_label = f"{fname}:{vname}"
                                         legend_name = vname.split('/')[-1]
 
+                                        # Build axis label with units when available
+                                        y_label = short_name
+                                        if 'units' in var.attrs:
+                                            y_label += f" ({var.attrs['units']})"
+
                                         # Detect time dimension (any dim whose name contains 'time')
                                         time_dim = None
                                         for d in dims:
@@ -500,6 +510,13 @@ with col_right:
                                                 line=dict(color=trace_color)
                                             ))
                                             has_data = True
+                                            if first_trace_info is None:
+                                                first_trace_info = {
+                                                    "x_dim": dims[0],
+                                                    "x_vals": var.coords[dims[0]].values,
+                                                    "y_label": y_label,
+                                                    "y_vals": var.values,
+                                                }
                                         else:
                                             # Heatmap logic
                                             has_time = time_dim is not None and var.sizes[time_dim] > 1
@@ -514,6 +531,8 @@ with col_right:
                                                 z_data = np.transpose(slice_data.values, axes=(other_pos, time_pos))
                                                 x_coord = slice_data.coords[time_dim].values
                                                 y_coord = slice_data.coords[other_dims[0]].values
+                                                hm_x_dim = time_dim
+                                                hm_y_dim = other_dims[0]
                                             else:
                                                 slice_data = var
                                                 for d in dims[2:]:
@@ -523,6 +542,8 @@ with col_right:
                                                 z_data = slice_data.values
                                                 x_coord = slice_data.coords[slice_data.dims[1]].values if len(slice_data.dims) > 1 else None
                                                 y_coord = slice_data.coords[slice_data.dims[0]].values if len(slice_data.dims) > 0 else None
+                                                hm_x_dim = slice_data.dims[1] if len(slice_data.dims) > 1 else None
+                                                hm_y_dim = slice_data.dims[0] if len(slice_data.dims) > 0 else None
                                             heatmap_kwargs = {
                                             "z": z_data, 
                                             "x": x_coord, 
@@ -539,13 +560,35 @@ with col_right:
                                                 heatmap_kwargs["zmin"] = panel['z_min']
                                             if panel.get('z_max') is not None:
                                                 heatmap_kwargs["zmax"] = panel['z_max']
+
+                                            heatmap_kwargs["colorbar"] = {"title": {"text": y_label}}
                                             
                                             fig.add_trace(go.Heatmap(**heatmap_kwargs))
                                             has_data = True
+                                            if first_trace_info is None:
+                                                first_trace_info = {
+                                                    "x_dim": hm_x_dim,
+                                                    "x_vals": x_coord,
+                                                    "y_label": hm_y_dim,
+                                                    "y_vals": y_coord,
+                                                }
                                     except:
                                         pass
+
                             if has_data:
-                                fig.update_layout(height=300, margin=dict(l=10, r=10, t=30, b=10), showlegend=True)
+                                fig.update_layout(height=st.session_state.plots_layout_height, margin=dict(l=10, r=10, t=30, b=10), showlegend=True)
+
+                                if first_trace_info:
+                                    info = first_trace_info
+                                    fig.update_xaxes(title_text=info["x_dim"])
+                                    fig.update_yaxes(title_text=info["y_label"])
+
+                                    for ax_key, vals in [("xaxis", info["x_vals"]), ("yaxis", info["y_vals"])]:
+                                        if vals is not None and len(vals) and np.issubdtype(np.asarray(vals).dtype, np.number):
+                                            abs_vals = np.abs(vals)
+                                            if abs_vals.max() > 10000 or (abs_vals[abs_vals > 0].min() < 0.001 if np.any(abs_vals > 0) else False):
+                                                fig.update_layout({ax_key: {"tickformat": ".0E"}})
+
                                 st.plotly_chart(fig, use_container_width=True)
                             else:
                                 st.caption("No compatible data")
