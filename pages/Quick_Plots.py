@@ -137,6 +137,8 @@ def add_trace_to_panel_callback(filename, varname, new_pos):
         st.session_state.panels.insert(int(new_pos), {
             "id": new_id, "traces": [],
             "show_config": False,
+            "show_slice": False,
+            "slice_configs": {},
             "colorscale": "Viridis",
             "invert_cmap": False,
             "z_min": None,
@@ -382,12 +384,15 @@ with col_right:
                         names_in_panel = [t[1] for t in panel['traces']]
                         names_str = ", ".join(names_in_panel)
                         title_suffix = f" - {names_str}" if names_in_panel else ""
-                        p_col1, p_col2, p_col3 = st.columns([0.6, 0.1, 0.1])
+                        p_col1, p_col2, p_col3, p_col4 = st.columns([0.45, 0.1, 0.1, 0.1])
                         p_col1.markdown(f"**Panel {panel['id']}{title_suffix}**")
                         if p_col2.button("🎨", key=f"gear_panel_{panel['id']}"):
                             panel['show_config'] = not panel['show_config']
                             st.rerun()
-                        if p_col3.button("🗑️", key=f"del_panel_{panel['id']}"):
+                        if p_col3.button("Axes", key=f"slice_panel_{panel['id']}"):
+                            panel['show_slice'] = not panel['show_slice']
+                            st.rerun()
+                        if p_col4.button("🗑️", key=f"del_panel_{panel['id']}"):
                             delete_panel(panel['id'])
                             st.rerun()
 
@@ -462,6 +467,66 @@ with col_right:
                                     )
                                     panel["traces"][ti] = (tfname, tvname, new_color)
 
+                        if panel.get('show_slice', False):
+                            with st.expander("Axis Control", expanded=True):
+                                for ti_slice, (tfname, tvname, _) in enumerate(panel['traces']):
+                                    if tfname in st.session_state.datasets_dict:
+                                        fi_s = st.session_state.datasets_dict[tfname]
+                                        ds_dict_s = fi_s.get("ds_dict", {"": fi_s["ds"]})
+                                        var_map_s = fi_s.get("var_to_group", {})
+                                        if tvname in var_map_s:
+                                            gp_s, sn_s = var_map_s[tvname]
+                                            ds_s = ds_dict_s[gp_s]
+                                        else:
+                                            ds_s = fi_s["ds"]
+                                            sn_s = tvname
+                                        var_s = ds_s[sn_s]
+                                        if len(var_s.dims) >= 2:
+                                            st.markdown(f"**{tvname}**")
+                                            dims_s = list(var_s.dims)
+                                            cur_cfg = panel.get("slice_configs", {}).get(ti_slice, {})
+
+                                            col1, col2, col3 = st.columns(3)
+                                            with col1:
+                                                default_x = cur_cfg.get("x_dim", dims_s[-1]) if cur_cfg.get("x_dim") in dims_s else dims_s[-1]
+                                                sel_x = st.selectbox(
+                                                    "x-axis", dims_s,
+                                                    index=dims_s.index(default_x),
+                                                    key=f"slice_x_{panel['id']}_{ti_slice}"
+                                                )
+                                            with col2:
+                                                other_dims = [d for d in dims_s if d != sel_x]
+                                                y_options = ["— Slice"] + other_dims
+                                                default_y = cur_cfg.get("y_dim")
+                                                if default_y is not None and default_y in other_dims:
+                                                    default_y_idx = y_options.index(default_y)
+                                                else:
+                                                    default_y_idx = 0
+                                                sel_y_label = st.selectbox(
+                                                    "y-axis", y_options,
+                                                    index=default_y_idx,
+                                                    key=f"slice_y_{panel['id']}_{ti_slice}"
+                                                )
+                                                sel_y = None if sel_y_label == "— Slice" else sel_y_label
+                                            
+                                            slice_at = {}
+                                            slice_dims = [d for d in dims_s if d != sel_x and (sel_y is None or d != sel_y)]
+                                            for si_start in range(0, len(slice_dims), 3):
+                                                row = slice_dims[si_start:si_start + 3]
+                                                cols_3 = st.columns(3)
+                                                for ci, d in enumerate(row):
+                                                    with cols_3[ci]:
+                                                        default_si = cur_cfg.get("slice_at", {}).get(d, 0)
+                                                        slice_at[d] = st.number_input(
+                                                            f"Index for {d}",
+                                                            min_value=0, max_value=var_s.sizes[d] - 1,
+                                                            value=default_si,
+                                                            key=f"slice_{panel['id']}_{ti_slice}_{d}"
+                                                        )
+                                            if 'slice_configs' not in panel:
+                                                panel['slice_configs'] = {}
+                                            panel['slice_configs'][ti_slice] = {"x_dim": sel_x, "y_dim": sel_y, "slice_at": slice_at}
+
                         colorscale = panel.get("colorscale", "Viridis")
                         if panel.get("invert_cmap", False):
                             colorscale = colorscale + "_r"
@@ -471,7 +536,7 @@ with col_right:
                             has_data = False
                             first_trace_info = None
 
-                            for fname, vname, trace_color in panel['traces']:
+                            for ti, (fname, vname, trace_color) in enumerate(panel['traces']):
                                 if fname in st.session_state.datasets_dict:
                                     try:
                                         file_info = st.session_state.datasets_dict[fname]
@@ -484,7 +549,23 @@ with col_right:
                                             ds = file_info["ds"]
                                             short_name = vname
                                         var = ds[short_name]
-                                        dims = var.dims
+                                        # Apply user slice config or default
+                                        slice_cfg = panel.get("slice_configs", {}).get(ti)
+                                        if slice_cfg and "x_dim" in slice_cfg and "y_dim" in slice_cfg:
+                                            x_dim = slice_cfg["x_dim"]
+                                            y_dim = slice_cfg["y_dim"]
+                                            sliced = var
+                                            for sd, si in slice_cfg.get("slice_at", {}).items():
+                                                if sd in sliced.dims:
+                                                    sliced = sliced.isel({sd: si})
+                                        else:
+                                            dims_list = list(var.dims)
+                                            x_dim = dims_list[-1] if dims_list else None
+                                            y_dim = dims_list[-2] if len(dims_list) >= 2 else None
+                                            sliced = var
+                                            for d in dims_list[:-2]:
+                                                sliced = sliced.isel({d: 0})
+                                        dims = sliced.dims
                                         full_label = f"{fname}:{vname}"
                                         legend_name = vname.split('/')[-1]
 
@@ -493,17 +574,10 @@ with col_right:
                                         if 'units' in var.attrs:
                                             y_label += f" ({var.attrs['units']})"
 
-                                        # Detect time dimension (any dim whose name contains 'time')
-                                        time_dim = None
-                                        for d in dims:
-                                            if 'time' in d.lower():
-                                                time_dim = d
-                                                break
-
                                         if len(dims) == 1:
                                             fig.add_trace(go.Scatter(
-                                                x=var.coords[dims[0]].values,
-                                                y=var.values,
+                                                x=sliced.coords[dims[0]].values,
+                                                y=sliced.values,
                                                 mode='lines',
                                                 name=legend_name,
                                                 hovertemplate=f"<b>{full_label}</b><br>%{{x}}<br>%{{y}}<extra></extra>",
@@ -513,37 +587,18 @@ with col_right:
                                             if first_trace_info is None:
                                                 first_trace_info = {
                                                     "x_dim": dims[0],
-                                                    "x_vals": var.coords[dims[0]].values,
+                                                    "x_vals": sliced.coords[dims[0]].values,
                                                     "y_label": y_label,
-                                                    "y_vals": var.values,
+                                                    "y_vals": sliced.values,
                                                 }
-                                        else:
-                                            # Heatmap logic
-                                            has_time = time_dim is not None and var.sizes[time_dim] > 1
-                                            if has_time and len(dims) >= 2:
-                                                other_dims = [d for d in dims if d != time_dim]
-                                                slice_data = var
-                                                for d in other_dims[1:]:
-                                                    slice_data = slice_data.isel({d: 0})
-                                                dims_list = list(slice_data.dims)
-                                                time_pos = dims_list.index(time_dim)
-                                                other_pos = dims_list.index(other_dims[0])
-                                                z_data = np.transpose(slice_data.values, axes=(other_pos, time_pos))
-                                                x_coord = slice_data.coords[time_dim].values
-                                                y_coord = slice_data.coords[other_dims[0]].values
-                                                hm_x_dim = time_dim
-                                                hm_y_dim = other_dims[0]
-                                            else:
-                                                slice_data = var
-                                                for d in dims[2:]:
-                                                    slice_data = slice_data.isel({d: 0})
-                                                if len(slice_data.dims) > 2:
-                                                    slice_data = slice_data.isel({slice_data.dims[2]: 0})
-                                                z_data = slice_data.values
-                                                x_coord = slice_data.coords[slice_data.dims[1]].values if len(slice_data.dims) > 1 else None
-                                                y_coord = slice_data.coords[slice_data.dims[0]].values if len(slice_data.dims) > 0 else None
-                                                hm_x_dim = slice_data.dims[1] if len(slice_data.dims) > 1 else None
-                                                hm_y_dim = slice_data.dims[0] if len(slice_data.dims) > 0 else None
+                                        elif len(dims) >= 2:
+                                            if y_dim is not None and x_dim in dims and y_dim in dims:
+                                                sliced = sliced.transpose(y_dim, x_dim)
+                                            z_data = sliced.values
+                                            x_coord = sliced.coords[sliced.dims[1]].values if len(sliced.dims) > 1 else None
+                                            y_coord = sliced.coords[sliced.dims[0]].values if len(sliced.dims) > 0 else None
+                                            hm_x_dim = sliced.dims[1] if len(sliced.dims) > 1 else None
+                                            hm_y_dim = sliced.dims[0] if len(sliced.dims) > 0 else None
                                             heatmap_kwargs = {
                                             "z": z_data, 
                                             "x": x_coord, 
@@ -552,8 +607,8 @@ with col_right:
                                             "name": legend_name,
                                             "hovertemplate": f"<b>{full_label}</b><br>x: %{{x}}<br>y: %{{y}}<br>z: %{{z}}<extra></extra>"
                                             }
-                                            panel['z_min'] = slice_data.values.min() if panel.get('z_min') is None else panel['z_min']
-                                            panel['z_max'] = slice_data.values.max() if panel.get('z_max') is None else panel['z_max']
+                                            panel['z_min'] = sliced.values.min() if panel.get('z_min') is None else panel['z_min']
+                                            panel['z_max'] = sliced.values.max() if panel.get('z_max') is None else panel['z_max']
 
                                             # Apply zmin/zmax if they have been set in the panel
                                             if panel.get('z_min') is not None:
