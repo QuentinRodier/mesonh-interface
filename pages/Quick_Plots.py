@@ -546,6 +546,37 @@ with col_right:
                                                 panel['slice_configs'] = {}
                                             panel['slice_configs'][ti_slice] = {"x_dim": sel_x, "y_dim": sel_y, "slice_at": slice_at}
 
+                                # Count 1D traces for secondary y-axis option (apply slice config to determine final dims)
+                                n_scatter = 0
+                                for ti_sc, (fn_sc, vn_sc, _) in enumerate(panel['traces']):
+                                    if fn_sc in st.session_state.datasets_dict:
+                                        fi_sc = st.session_state.datasets_dict[fn_sc]
+                                        dd_sc = fi_sc.get("ds_dict", {"": fi_sc["ds"]})
+                                        vm_sc = fi_sc.get("var_to_group", {})
+                                        gp_sc, sn_sc = (vm_sc[vn_sc]) if vn_sc in vm_sc else ("", vn_sc)
+                                        ds_sc = dd_sc[gp_sc] if gp_sc else fi_sc["ds"]
+                                        v_sc = ds_sc[sn_sc]
+                                        # Apply slice config
+                                        sc_cfg = panel.get("slice_configs", {}).get(ti_sc, {})
+                                        if sc_cfg and "x_dim" in sc_cfg:
+                                            sv_sc = v_sc
+                                            for sd, si in sc_cfg.get("slice_at", {}).items():
+                                                if sd in sv_sc.dims:
+                                                    sv_sc = sv_sc.isel({sd: si})
+                                        else:
+                                            dims_sc = list(v_sc.dims)
+                                            sv_sc = v_sc
+                                            for d in dims_sc[:-2]:
+                                                sv_sc = sv_sc.isel({d: 0})
+                                        if len(sv_sc.dims) == 1:
+                                            n_scatter += 1
+                                if n_scatter >= 2:
+                                    panel['secondary_y'] = st.checkbox(
+                                        "Secondary Y-axis (right)",
+                                        value=panel.get('secondary_y', False),
+                                        key=f"sec_y_{panel['id']}"
+                                    )
+
                         if panel.get('show_range', False):
                             # Compute current data ranges from first trace for default values
                             ax_min = ax_max = ay_min = ay_max = None
@@ -603,6 +634,7 @@ with col_right:
                             fig = go.Figure()
                             has_data = False
                             first_trace_info = None
+                            trace_y_labels = []
 
                             for ti, (fname, vname, trace_color) in enumerate(panel['traces']):
                                 if fname in st.session_state.datasets_dict:
@@ -641,16 +673,20 @@ with col_right:
                                         y_label = short_name
                                         if 'units' in var.attrs:
                                             y_label += f" ({var.attrs['units']})"
+                                        trace_y_labels.append(y_label)
 
                                         if len(dims) == 1:
-                                            fig.add_trace(go.Scatter(
-                                                x=sliced.coords[dims[0]].values,
-                                                y=sliced.values,
-                                                mode='lines',
-                                                name=legend_name,
-                                                hovertemplate=f"<b>{full_label}</b><br>%{{x}}<br>%{{y}}<extra></extra>",
-                                                line=dict(color=trace_color)
-                                            ))
+                                            sc_kw = {
+                                                "x": sliced.coords[dims[0]].values,
+                                                "y": sliced.values,
+                                                "mode": 'lines',
+                                                "name": legend_name,
+                                                "hovertemplate": f"<b>{full_label}</b><br>%{{x}}<br>%{{y}}<extra></extra>",
+                                                "line": dict(color=trace_color),
+                                            }
+                                            if panel.get('secondary_y', False) and ti >= 1:
+                                                sc_kw["yaxis"] = "y2"
+                                            fig.add_trace(go.Scatter(**sc_kw))
                                             has_data = True
                                             if first_trace_info is None:
                                                 first_trace_info = {
@@ -728,24 +764,30 @@ with col_right:
 
                             if has_data:
                                 fig.update_layout(height=st.session_state.plots_layout_height, margin=dict(l=10, r=10, t=30, b=10), showlegend=True)
-
+    
                                 if first_trace_info:
                                     info = first_trace_info
                                     fig.update_xaxes(title_text=info["x_dim"])
                                     fig.update_yaxes(title_text=info["y_label"])
-
+    
+                                    if panel.get('secondary_y', False) and len(trace_y_labels) >= 2:
+                                        fig.update_layout(yaxis2=dict(
+                                            overlaying="y", side="right",
+                                            title_text=trace_y_labels[1],
+                                        ))
+    
                                     for ax_key, vals in [("xaxis", info["x_vals"]), ("yaxis", info["y_vals"])]:
                                         if vals is not None and len(vals) and np.issubdtype(np.asarray(vals).dtype, np.number):
                                             abs_vals = np.abs(vals)
                                             if abs_vals.max() > 10000 or (abs_vals[abs_vals > 0].min() < 0.001 if np.any(abs_vals > 0) else False):
                                                 fig.update_layout({ax_key: {"tickformat": ".0E"}})
-
+    
                                 # Apply axis range limits
                                 if panel.get('x_range_active', False):
                                     fig.update_xaxes(range=[panel.get('x_range_min'), panel.get('x_range_max')])
                                 if panel.get('y_range_active', False):
                                     fig.update_yaxes(range=[panel.get('y_range_min'), panel.get('y_range_max')])
-
+    
                                 st.plotly_chart(fig, use_container_width=True)
                             else:
                                 st.caption("No compatible data")
