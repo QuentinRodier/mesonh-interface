@@ -69,6 +69,8 @@ def open_dataset_with_groups(filepath):
         for vn in gds.data_vars:
             qualified = vn if not gp else f"{gp}/{vn}"
             var_to_group[qualified] = (gp, vn)
+            # Use where to replace sentinel values with NaN
+            gds[vn] = gds[vn].where((gds[vn] != 999) & (gds[vn] != 1e20))
     
     return ds_dict[""], ds_dict, groups, var_to_group
 
@@ -110,16 +112,17 @@ def load_nc_from_path(full_path, file_key, display_name=None):
                 counter += 1
             unique_key = f"{file_key}_{counter}"
         
-        st.session_state.datasets_dict[unique_key] = {
-            "ds": ds, 
-            "ds_dict": ds_dict,
-            "groups": groups,
-            "var_to_group": var_to_group,
-            "temp_path": full_path,
-            "original_name": display_name,
-            "rel_path": rel_path
-        }
-        st.success(f"Loaded: {display_name}")
+            st.session_state.datasets_dict[unique_key] = {
+                "ds": ds, 
+                "ds_dict": ds_dict,
+                "groups": groups,
+                "var_to_group": var_to_group,
+                "temp_path": full_path,
+                "original_name": display_name,
+                "rel_path": rel_path
+            }
+           
+            st.success(f"Loaded: {display_name}")
     except Exception as e:
         st.error(f"Error loading {file_key}: {e}")
 
@@ -523,6 +526,10 @@ with col_right:
                                                             value=default_si,
                                                             key=f"slice_{panel['id']}_{ti_slice}_{d}"
                                                         )
+                                                        # Display the real coordinate value
+                                                        current_idx = st.session_state[f"slice_{panel['id']}_{ti_slice}_{d}"]
+                                                        coord_val = var_s.indexes[d][current_idx]
+                                                        st.caption(f"Value: {coord_val:.4f}")
                                             if 'slice_configs' not in panel:
                                                 panel['slice_configs'] = {}
                                             panel['slice_configs'][ti_slice] = {"x_dim": sel_x, "y_dim": sel_y, "slice_at": slice_at}
