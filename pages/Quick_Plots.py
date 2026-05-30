@@ -540,7 +540,7 @@ with col_right:
                                                         )
                                                         # Display the real coordinate value
                                                         current_idx = st.session_state[f"slice_{panel['id']}_{ti_slice}_{d}"]
-                                                        coord_val = var_s.indexes[d][current_idx]
+                                                        coord_val = var_s.coords[d].values[current_idx]
                                                         st.caption(f"Value: {coord_val:.4f}")
                                             if 'slice_configs' not in panel:
                                                 panel['slice_configs'] = {}
