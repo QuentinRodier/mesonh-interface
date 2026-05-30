@@ -35,7 +35,8 @@ if 'plots_layout_height' not in st.session_state:
     st.session_state.plots_layout_height = 300
 if 'layout_mode' not in st.session_state:
     st.session_state.layout_mode = "Variables on top"
-
+if 'raw_mode' not in st.session_state:
+    st.session_state.raw_mode = False
 # --- Helper Functions ---
 
 def discover_groups(filepath):
@@ -387,7 +388,7 @@ with col_right:
                         names_in_panel = [t[1] for t in panel['traces']]
                         names_str = ", ".join(names_in_panel)
                         title_suffix = f" - {names_str}" if names_in_panel else ""
-                        p_col1, p_col2, p_col3, p_col4 = st.columns([0.45, 0.1, 0.1, 0.1])
+                        p_col1, p_col2, p_col3, p_col4, p_col5 = st.columns([0.45, 0.1, 0.1, 0.1, 0.1])
                         p_col1.markdown(f"**Panel {panel['id']}{title_suffix}**")
                         if p_col2.button("🎨", key=f"gear_panel_{panel['id']}"):
                             panel['show_config'] = not panel['show_config']
@@ -395,7 +396,10 @@ with col_right:
                         if p_col3.button("Axes", key=f"slice_panel_{panel['id']}"):
                             panel['show_slice'] = not panel['show_slice']
                             st.rerun()
-                        if p_col4.button("🗑️", key=f"del_panel_{panel['id']}"):
+                        if p_col4.button("Raw", key=f"raw_panel_{panel['id']}"):
+                            st.session_state.raw_mode = not st.session_state.raw_mode
+                            st.rerun()
+                        if p_col5.button("🗑️", key=f"del_panel_{panel['id']}"):
                             delete_panel(panel['id'])
                             st.rerun()
 
@@ -499,7 +503,7 @@ with col_right:
                                                 )
                                             with col2:
                                                 other_dims = [d for d in dims_s if d != sel_x]
-                                                y_options = ["— Slice"] + other_dims
+                                                y_options = other_dims + ["— Slice"]
                                                 default_y = cur_cfg.get("y_dim")
                                                 if default_y is not None and default_y in other_dims:
                                                     default_y_idx = y_options.index(default_y)
@@ -606,12 +610,14 @@ with col_right:
                                             y_coord = sliced.coords[sliced.dims[0]].values if len(sliced.dims) > 0 else None
                                             hm_x_dim = sliced.dims[1] if len(sliced.dims) > 1 else None
                                             hm_y_dim = sliced.dims[0] if len(sliced.dims) > 0 else None
+                                            zsmooth = False if st.session_state.raw_mode else "best"
                                             heatmap_kwargs = {
                                             "z": z_data, 
                                             "x": x_coord, 
                                             "y": y_coord,
                                             "colorscale": colorscale,
                                             "name": legend_name,
+                                            "zsmooth": zsmooth,
                                             "hovertemplate": f"<b>{full_label}</b><br>x: %{{x}}<br>y: %{{y}}<br>z: %{{z}}<extra></extra>"
                                             }
                                             panel['z_min'] = sliced.values.min() if panel.get('z_min') is None else panel['z_min']
