@@ -390,7 +390,7 @@ with col_right:
                         names_in_panel = [t[1] for t in panel['traces']]
                         names_str = ", ".join(names_in_panel)
                         title_suffix = f" - {names_str}" if names_in_panel else ""
-                        p_col1, p_col2, p_col3, p_col4, p_col5, p_col6 = st.columns([0.45, 0.1, 0.1, 0.1, 0.1, 0.1])
+                        p_col1, p_col2, p_col3, p_col4, p_col5, p_col6, p_col7 = st.columns([0.30, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
                         p_col1.markdown(f"**Panel {panel['id']}{title_suffix}**")
                         if p_col2.button("🎨", key=f"gear_panel_{panel['id']}"):
                             panel['show_config'] = not panel['show_config']
@@ -398,13 +398,16 @@ with col_right:
                         if p_col3.button("Axes", key=f"slice_panel_{panel['id']}"):
                             panel['show_slice'] = not panel['show_slice']
                             st.rerun()
-                        if p_col4.button("Raw", key=f"raw_panel_{panel['id']}"):
+                        if p_col4.button("Range", key=f"range_panel_{panel['id']}"):
+                            panel['show_range'] = not panel.get('show_range', False)
+                            st.rerun()
+                        if p_col5.button("Raw", key=f"raw_panel_{panel['id']}"):
                             st.session_state.raw_mode = not st.session_state.raw_mode
                             st.rerun()
-                        if p_col5.button("Log", key=f"log_panel_{panel['id']}"):
+                        if p_col6.button("Log", key=f"log_panel_{panel['id']}"):
                             st.session_state.log_scale = not st.session_state.log_scale
                             st.rerun()
-                        if p_col6.button("🗑️", key=f"del_panel_{panel['id']}"):
+                        if p_col7.button("🗑️", key=f"del_panel_{panel['id']}"):
                             delete_panel(panel['id'])
                             st.rerun()
 
@@ -542,6 +545,55 @@ with col_right:
                                             if 'slice_configs' not in panel:
                                                 panel['slice_configs'] = {}
                                             panel['slice_configs'][ti_slice] = {"x_dim": sel_x, "y_dim": sel_y, "slice_at": slice_at}
+
+                        if panel.get('show_range', False):
+                            # Compute current data ranges from first trace for default values
+                            ax_min = ax_max = ay_min = ay_max = None
+                            if panel['traces']:
+                                try:
+                                    fn, vn, _ = panel['traces'][0]
+                                    if fn in st.session_state.datasets_dict:
+                                        fi = st.session_state.datasets_dict[fn]
+                                        dd = fi.get("ds_dict", {"": fi["ds"]})
+                                        vm = fi.get("var_to_group", {})
+                                        gp, sn = (vm[vn]) if vn in vm else ("", vn)
+                                        ds = dd[gp] if gp else fi["ds"]
+                                        v = ds[sn]
+                                        sc = panel.get("slice_configs", {}).get(0, {})
+                                        xd = sc.get("x_dim") or (list(v.dims)[-1] if v.dims else None)
+                                        yd = sc.get("y_dim")
+                                        sv = v
+                                        for sd, si in sc.get("slice_at", {}).items():
+                                            if sd in sv.dims:
+                                                sv = sv.isel({sd: si})
+                                        if yd and xd and xd in sv.dims and yd in sv.dims:
+                                            sv = sv.transpose(yd, xd)
+                                        if len(sv.dims) > 1:
+                                            xc = sv.coords[sv.dims[1]].values
+                                            yc = sv.coords[sv.dims[0]].values
+                                            if len(xc): ax_min, ax_max = float(xc.min()), float(xc.max())
+                                            if len(yc): ay_min, ay_max = float(yc.min()), float(yc.max())
+                                except:
+                                    pass
+
+                            with st.expander("Range", expanded=True):
+                                use_x = st.checkbox("Set X range", value=panel.get('x_range_active', False), key=f"xr_use_{panel['id']}")
+                                if use_x:
+                                    col_x1, col_x2 = st.columns(2)
+                                    with col_x1:
+                                        panel['x_range_min'] = st.number_input("X min", value=ax_min if ax_min is not None else 0.0, format="%.6f", key=f"xr_min_{panel['id']}")
+                                    with col_x2:
+                                        panel['x_range_max'] = st.number_input("X max", value=ax_max if ax_max is not None else 1.0, format="%.6f", key=f"xr_max_{panel['id']}")
+                                panel['x_range_active'] = use_x
+
+                                use_y = st.checkbox("Set Y range", value=panel.get('y_range_active', False), key=f"yr_use_{panel['id']}")
+                                if use_y:
+                                    col_y1, col_y2 = st.columns(2)
+                                    with col_y1:
+                                        panel['y_range_min'] = st.number_input("Y min", value=ay_min if ay_min is not None else 0.0, format="%.6f", key=f"yr_min_{panel['id']}")
+                                    with col_y2:
+                                        panel['y_range_max'] = st.number_input("Y max", value=ay_max if ay_max is not None else 1.0, format="%.6f", key=f"yr_max_{panel['id']}")
+                                panel['y_range_active'] = use_y
 
                         colorscale = panel.get("colorscale", "Viridis")
                         if panel.get("invert_cmap", False):
@@ -687,6 +739,12 @@ with col_right:
                                             abs_vals = np.abs(vals)
                                             if abs_vals.max() > 10000 or (abs_vals[abs_vals > 0].min() < 0.001 if np.any(abs_vals > 0) else False):
                                                 fig.update_layout({ax_key: {"tickformat": ".0E"}})
+
+                                # Apply axis range limits
+                                if panel.get('x_range_active', False):
+                                    fig.update_xaxes(range=[panel.get('x_range_min'), panel.get('x_range_max')])
+                                if panel.get('y_range_active', False):
+                                    fig.update_yaxes(range=[panel.get('y_range_min'), panel.get('y_range_max')])
 
                                 st.plotly_chart(fig, use_container_width=True)
                             else:
