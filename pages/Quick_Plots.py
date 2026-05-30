@@ -21,6 +21,8 @@ if 'target_panel_id' not in st.session_state:
     st.session_state.target_panel_id = None 
 if 'new_panel_pos' not in st.session_state:
     st.session_state.new_panel_pos = 0
+if 'log_scale' not in st.session_state:
+    st.session_state.log_scale = False
 if 'target_panel_selector' not in st.session_state:
     st.session_state.target_panel_selector = "➕ Create New Panel"
 if 'workspace_path' not in st.session_state:
@@ -388,7 +390,7 @@ with col_right:
                         names_in_panel = [t[1] for t in panel['traces']]
                         names_str = ", ".join(names_in_panel)
                         title_suffix = f" - {names_str}" if names_in_panel else ""
-                        p_col1, p_col2, p_col3, p_col4, p_col5 = st.columns([0.45, 0.1, 0.1, 0.1, 0.1])
+                        p_col1, p_col2, p_col3, p_col4, p_col5, p_col6 = st.columns([0.45, 0.1, 0.1, 0.1, 0.1, 0.1])
                         p_col1.markdown(f"**Panel {panel['id']}{title_suffix}**")
                         if p_col2.button("🎨", key=f"gear_panel_{panel['id']}"):
                             panel['show_config'] = not panel['show_config']
@@ -399,7 +401,10 @@ with col_right:
                         if p_col4.button("Raw", key=f"raw_panel_{panel['id']}"):
                             st.session_state.raw_mode = not st.session_state.raw_mode
                             st.rerun()
-                        if p_col5.button("🗑️", key=f"del_panel_{panel['id']}"):
+                        if p_col5.button("Log", key=f"log_panel_{panel['id']}"):
+                            st.session_state.log_scale = not st.session_state.log_scale
+                            st.rerun()
+                        if p_col6.button("🗑️", key=f"del_panel_{panel['id']}"):
                             delete_panel(panel['id'])
                             st.rerun()
 
@@ -611,6 +616,13 @@ with col_right:
                                             hm_x_dim = sliced.dims[1] if len(sliced.dims) > 1 else None
                                             hm_y_dim = sliced.dims[0] if len(sliced.dims) > 0 else None
                                             zsmooth = False if st.session_state.raw_mode else "best"
+
+                                            # Log-scale transform
+                                            log_scale = st.session_state.log_scale
+                                            if log_scale:
+                                                z_data = np.where(z_data > 0, np.log10(z_data), np.nan)
+                                            cb_title = f"log({y_label})" if log_scale else y_label
+
                                             heatmap_kwargs = {
                                             "z": z_data, 
                                             "x": x_coord, 
@@ -623,13 +635,32 @@ with col_right:
                                             panel['z_min'] = sliced.values.min() if panel.get('z_min') is None else panel['z_min']
                                             panel['z_max'] = sliced.values.max() if panel.get('z_max') is None else panel['z_max']
 
-                                            # Apply zmin/zmax if they have been set in the panel
-                                            if panel.get('z_min') is not None:
-                                                heatmap_kwargs["zmin"] = panel['z_min']
-                                            if panel.get('z_max') is not None:
-                                                heatmap_kwargs["zmax"] = panel['z_max']
+                                            # Apply zmin/zmax — on log scale if active
+                                            if log_scale:
+                                                if panel.get('z_min') is not None and panel['z_min'] > 0:
+                                                    heatmap_kwargs["zmin"] = np.log10(panel['z_min'])
+                                                if panel.get('z_max') is not None and panel['z_max'] > 0:
+                                                    heatmap_kwargs["zmax"] = np.log10(panel['z_max'])
+                                            else:
+                                                if panel.get('z_min') is not None:
+                                                    heatmap_kwargs["zmin"] = panel['z_min']
+                                                if panel.get('z_max') is not None:
+                                                    heatmap_kwargs["zmax"] = panel['z_max']
 
-                                            heatmap_kwargs["colorbar"] = {"title": {"text": y_label}}
+                                            # Colorbar tick labels in original scale when log is active
+                                            if log_scale and not np.all(np.isnan(z_data)):
+                                                log_min = np.nanmin(z_data)
+                                                log_max = np.nanmax(z_data)
+                                                if np.isfinite(log_min) and np.isfinite(log_max):
+                                                    log_ticks = np.linspace(log_min, log_max, 6)
+                                                    orig_ticks = 10 ** log_ticks
+                                                    heatmap_kwargs["colorbar"] = {
+                                                        "title": {"text": cb_title},
+                                                        "tickvals": log_ticks.tolist(),
+                                                        "ticktext": [f"{v:.2e}" for v in orig_ticks]
+                                                    }
+                                            else:
+                                                heatmap_kwargs["colorbar"] = {"title": {"text": cb_title}}
                                             
                                             fig.add_trace(go.Heatmap(**heatmap_kwargs))
                                             has_data = True
