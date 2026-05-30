@@ -39,6 +39,16 @@ if 'layout_mode' not in st.session_state:
     st.session_state.layout_mode = "Variables on top"
 if 'raw_mode' not in st.session_state:
     st.session_state.raw_mode = False
+if 'sync_colormap' not in st.session_state:
+    st.session_state.sync_colormap = False
+if 'sync_colorscale' not in st.session_state:
+    st.session_state.sync_colorscale = "Viridis"
+if 'sync_invert_cmap' not in st.session_state:
+    st.session_state.sync_invert_cmap = False
+if 'sync_z_min' not in st.session_state:
+    st.session_state.sync_z_min = None
+if 'sync_z_max' not in st.session_state:
+    st.session_state.sync_z_max = None
 # --- Helper Functions ---
 
 def discover_groups(filepath):
@@ -277,6 +287,50 @@ with st.sidebar:
     st.session_state.var_layout_weight = st.slider("Width (if side by side)", min_value=1, max_value=5, value=st.session_state.var_layout_weight)
     st.session_state.var_layout_height = st.slider("Height", min_value=100, max_value=2000, value=st.session_state.var_layout_height)
 
+    st.divider()
+    st.header("Colormap Sync")
+    st.session_state.sync_colormap = st.checkbox(
+        "Sync colormap & range across all panels",
+        value=st.session_state.sync_colormap,
+        key="sync_cmap_cb"
+    )
+    if st.session_state.sync_colormap:
+        st.session_state.sync_colorscale = st.selectbox(
+            "Colorscale",
+            options=["Viridis", "Plasma", "Inferno", "Magma",
+                     "Greys", "YlGnBu", "Greens", "YlOrRd", "Bluered", "RdBu",
+                     "Reds", "Blues", "Picnic", "Rainbow", "Portland", "Jet",
+                     "Hot", "Blackbody", "Earth", "Electric",
+                     "RdYlBu", "RdYlGn", "Spectral", "Coolwarm", "PiYG",
+                     "PRGn", "BrBG", "PuOr", "RdGy",
+                     "Twilight", "HSV"],
+            index=["Viridis", "Plasma", "Inferno", "Magma",
+                   "Greys", "YlGnBu", "Greens", "YlOrRd", "Bluered", "RdBu",
+                   "Reds", "Blues", "Picnic", "Rainbow", "Portland", "Jet",
+                   "Hot", "Blackbody", "Earth", "Electric",
+                   "RdYlBu", "RdYlGn", "Spectral", "Coolwarm", "PiYG",
+                   "PRGn", "BrBG", "PuOr", "RdGy",
+                   "Twilight", "HSV"].index(
+                st.session_state.sync_colorscale
+            ),
+            key="sync_cs_sel",
+            format_func=lambda x: x
+        )
+        st.session_state.sync_invert_cmap = st.checkbox(
+            "Invert",
+            value=st.session_state.sync_invert_cmap,
+            key="sync_inv_cb"
+        )
+        col_z1, col_z2 = st.columns(2)
+        with col_z1:
+            z_min_sync_val = st.session_state.sync_z_min if st.session_state.sync_z_min is not None else 0.0
+            new_z_min_sync = st.number_input("Z min", value=z_min_sync_val, format="%.6f", key="sync_zmin_inp")
+            st.session_state.sync_z_min = new_z_min_sync
+        with col_z2:
+            z_max_sync_val = st.session_state.sync_z_max if st.session_state.sync_z_max is not None else 1.0
+            new_z_max_sync = st.number_input("Z max", value=z_max_sync_val, format="%.6f", key="sync_zmax_inp")
+            st.session_state.sync_z_max = new_z_max_sync
+
 # --- Main UI  ---
 _var_w = st.session_state.var_layout_weight
 if st.session_state.layout_mode == "Side by side":
@@ -431,49 +485,55 @@ with col_right:
                             
                             if has_heatmap_trace:
                                 with st.expander("Colormap Range", expanded=True):
-                                    # Use panel values as the source for the widget
-                                    # We use a default 0.0/1.0 if the value is None to prevent errors
-                                    z_min_val = float(panel.get('z_min') if panel.get('z_min') is not None else 0.0)
-                                    z_max_val = float(panel.get('z_max') if panel.get('z_max') is not None else 1.0)
-                                    
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        new_z_min = st.number_input("Min", value=z_min_val, key=f"zmin_ui_{panel['id']}", format="%.8f")
-                                    with col2:
-                                        new_z_max = st.number_input("Max", value=z_max_val, key=f"zmax_ui_{panel['id']}", format="%.8f")
-                                    
-                                    # Sync the widget back to the panel state
-                                    panel['z_min'] = new_z_min
-                                    panel['z_max'] = new_z_max
+                                    if st.session_state.sync_colormap:
+                                        st.caption("Controlled globally in sidebar")
+                                    else:
+                                        # Use panel values as the source for the widget
+                                        # We use a default 0.0/1.0 if the value is None to prevent errors
+                                        z_min_val = float(panel.get('z_min') if panel.get('z_min') is not None else 0.0)
+                                        z_max_val = float(panel.get('z_max') if panel.get('z_max') is not None else 1.0)
+
+                                        col1, col2 = st.columns(2)
+                                        with col1:
+                                            new_z_min = st.number_input("Min", value=z_min_val, key=f"zmin_ui_{panel['id']}", format="%.8f")
+                                        with col2:
+                                            new_z_max = st.number_input("Max", value=z_max_val, key=f"zmax_ui_{panel['id']}", format="%.8f")
+
+                                        # Sync the widget back to the panel state
+                                        panel['z_min'] = new_z_min
+                                        panel['z_max'] = new_z_max
 
                             with st.expander("Color", expanded=True):
-                                col_cs, col_inv = st.columns([0.7, 0.3])
-                                with col_cs:
-                                    cs = st.selectbox(
-                                        "Colorscale",
-                                        options=["Viridis", "Plasma", "Inferno", "Magma",
-                                                 "Greys", "YlGnBu", "Greens", "YlOrRd", "Bluered", "RdBu",
-                                                 "Reds", "Blues", "Picnic", "Rainbow", "Portland", "Jet",
-                                                 "Hot", "Blackbody", "Earth", "Electric",
-                                                 "RdYlBu", "RdYlGn", "Spectral", "Coolwarm", "PiYG",
-                                                 "PRGn", "BrBG", "PuOr", "RdGy",
-                                                 "Twilight", "HSV"],
-                                        index=["Viridis", "Plasma", "Inferno", "Magma",
-                                               "Greys", "YlGnBu", "Greens", "YlOrRd", "Bluered", "RdBu",
-                                               "Reds", "Blues", "Picnic", "Rainbow", "Portland", "Jet",
-                                               "Hot", "Blackbody", "Earth", "Electric",
-                                               "RdYlBu", "RdYlGn", "Spectral", "Coolwarm", "PiYG",
-                                               "PRGn", "BrBG", "PuOr", "RdGy",
-                                               "Twilight", "HSV"].index(
-                                            panel.get("colorscale", "Viridis")),
-                                        key=f"cs_sel_{panel['id']}",
-                                        format_func=lambda x: x
-                                    )
-                                    panel["colorscale"] = cs
-                                with col_inv:
-                                    inv = st.checkbox("🔄 Invert", value=panel.get("invert_cmap", False),
-                                                      key=f"inv_cb_{panel['id']}")
-                                    panel["invert_cmap"] = inv
+                                if st.session_state.sync_colormap:
+                                    st.caption("Colormap controlled globally in sidebar")
+                                else:
+                                    col_cs, col_inv = st.columns([0.7, 0.3])
+                                    with col_cs:
+                                        cs = st.selectbox(
+                                            "Colorscale",
+                                            options=["Viridis", "Plasma", "Inferno", "Magma",
+                                                     "Greys", "YlGnBu", "Greens", "YlOrRd", "Bluered", "RdBu",
+                                                     "Reds", "Blues", "Picnic", "Rainbow", "Portland", "Jet",
+                                                     "Hot", "Blackbody", "Earth", "Electric",
+                                                     "RdYlBu", "RdYlGn", "Spectral", "Coolwarm", "PiYG",
+                                                     "PRGn", "BrBG", "PuOr", "RdGy",
+                                                     "Twilight", "HSV"],
+                                            index=["Viridis", "Plasma", "Inferno", "Magma",
+                                                   "Greys", "YlGnBu", "Greens", "YlOrRd", "Bluered", "RdBu",
+                                                   "Reds", "Blues", "Picnic", "Rainbow", "Portland", "Jet",
+                                                   "Hot", "Blackbody", "Earth", "Electric",
+                                                   "RdYlBu", "RdYlGn", "Spectral", "Coolwarm", "PiYG",
+                                                   "PRGn", "BrBG", "PuOr", "RdGy",
+                                                   "Twilight", "HSV"].index(
+                                                panel.get("colorscale", "Viridis")),
+                                            key=f"cs_sel_{panel['id']}",
+                                            format_func=lambda x: x
+                                        )
+                                        panel["colorscale"] = cs
+                                    with col_inv:
+                                        inv = st.checkbox("🔄 Invert", value=panel.get("invert_cmap", False),
+                                                          key=f"inv_cb_{panel['id']}")
+                                        panel["invert_cmap"] = inv
                                 for ti, (tfname, tvname, tcolor) in enumerate(panel["traces"]):
                                     new_color = st.color_picker(
                                         f"{tvname}",
@@ -541,7 +601,10 @@ with col_right:
                                                         # Display the real coordinate value
                                                         current_idx = st.session_state[f"slice_{panel['id']}_{ti_slice}_{d}"]
                                                         coord_val = var_s.coords[d].values[current_idx]
-                                                        st.caption(f"Value: {coord_val:.4f}")
+                                                        if isinstance(coord_val, (int, float, np.floating)):
+                                                            st.caption(f"Value: {coord_val:.4f}")
+                                                        else:
+                                                            st.caption(f"Value: {coord_val}")
                                             if 'slice_configs' not in panel:
                                                 panel['slice_configs'] = {}
                                             panel['slice_configs'][ti_slice] = {"x_dim": sel_x, "y_dim": sel_y, "slice_at": slice_at}
@@ -626,9 +689,14 @@ with col_right:
                                         panel['y_range_max'] = st.number_input("Y max", value=ay_max if ay_max is not None else 1.0, format="%.6f", key=f"yr_max_{panel['id']}")
                                 panel['y_range_active'] = use_y
 
-                        colorscale = panel.get("colorscale", "Viridis")
-                        if panel.get("invert_cmap", False):
-                            colorscale = colorscale + "_r"
+                        if st.session_state.sync_colormap:
+                            colorscale = st.session_state.sync_colorscale
+                            if st.session_state.sync_invert_cmap:
+                                colorscale = colorscale + "_r"
+                        else:
+                            colorscale = panel.get("colorscale", "Viridis")
+                            if panel.get("invert_cmap", False):
+                                colorscale = colorscale + "_r"
 
                         if panel['traces']:
                             fig = go.Figure()
@@ -720,20 +788,26 @@ with col_right:
                                             "zsmooth": zsmooth,
                                             "hovertemplate": f"<b>{full_label}</b><br>x: %{{x}}<br>y: %{{y}}<br>z: %{{z}}<extra></extra>"
                                             }
-                                            panel['z_min'] = sliced.values.min() if panel.get('z_min') is None else panel['z_min']
-                                            panel['z_max'] = sliced.values.max() if panel.get('z_max') is None else panel['z_max']
+                                            if st.session_state.sync_colormap:
+                                                eff_z_min = sliced.values.min() if st.session_state.sync_z_min is None else st.session_state.sync_z_min
+                                                eff_z_max = sliced.values.max() if st.session_state.sync_z_max is None else st.session_state.sync_z_max
+                                            else:
+                                                panel['z_min'] = sliced.values.min() if panel.get('z_min') is None else panel['z_min']
+                                                panel['z_max'] = sliced.values.max() if panel.get('z_max') is None else panel['z_max']
+                                                eff_z_min = panel['z_min']
+                                                eff_z_max = panel['z_max']
 
                                             # Apply zmin/zmax — on log scale if active
                                             if log_scale:
-                                                if panel.get('z_min') is not None and panel['z_min'] > 0:
-                                                    heatmap_kwargs["zmin"] = np.log10(panel['z_min'])
-                                                if panel.get('z_max') is not None and panel['z_max'] > 0:
-                                                    heatmap_kwargs["zmax"] = np.log10(panel['z_max'])
+                                                if eff_z_min is not None and eff_z_min > 0:
+                                                    heatmap_kwargs["zmin"] = np.log10(eff_z_min)
+                                                if eff_z_max is not None and eff_z_max > 0:
+                                                    heatmap_kwargs["zmax"] = np.log10(eff_z_max)
                                             else:
-                                                if panel.get('z_min') is not None:
-                                                    heatmap_kwargs["zmin"] = panel['z_min']
-                                                if panel.get('z_max') is not None:
-                                                    heatmap_kwargs["zmax"] = panel['z_max']
+                                                if eff_z_min is not None:
+                                                    heatmap_kwargs["zmin"] = eff_z_min
+                                                if eff_z_max is not None:
+                                                    heatmap_kwargs["zmax"] = eff_z_max
 
                                             # Colorbar tick labels in original scale when log is active
                                             if log_scale and not np.all(np.isnan(z_data)):
