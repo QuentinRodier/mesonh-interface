@@ -81,7 +81,28 @@ def render_namelist_view():
     if not st.session_state.namelist_blocks:
         return
 
-    download_placeholder = st.empty()
+    # Sync entry.value from widget session state keys.
+    # Streamlit updates session state BEFORE the script runs, so these keys
+    # already hold the current user values — even entry.value hasn't been
+    # updated by widget rendering yet.
+    ver = st.session_state.get('upload_ver', 0)
+    for block_name, block in st.session_state.namelist_blocks.items():
+        for param_name, entry in block.entries.items():
+            key = f"{block_name}_{param_name}_{ver}"
+            if key in st.session_state:
+                entry.value = st.session_state[key]
+
+    # Compute file content with FRESH values before any widgets render.
+    file_content = parser.write_namelist(st.session_state.namelist_blocks, st.session_state.export_keys_per_row)
+    if st.session_state.get('free_format_data'):
+        free_text = parser.write_free_format(st.session_state.free_format_data)
+        if free_text.strip():
+            file_content += "\n" + free_text
+
+    with st.container():
+        st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain", help="Set the number of "
+        "keys per row in ⚙️ Settings to format the downloaded file")
+
     st.divider()
 
     editor_width = st.session_state.get('editor_width', 2)
@@ -320,17 +341,6 @@ def render_namelist_view():
                             st.error(issue)
         else:
             st.info("Load a namelist to run Advise checks")
-
-    file_content = parser.write_namelist(st.session_state.namelist_blocks, st.session_state.export_keys_per_row)
-    # Append free-format data if it exists and has content
-    if st.session_state.get('free_format_data'):
-        free_text = parser.write_free_format(st.session_state.free_format_data)
-        if free_text.strip():
-            file_content += "\n" + free_text
-
-    with download_placeholder:
-        st.download_button("Download", file_content, file_name=st.session_state.current_file or "namelist.nam", mime="text/plain", help="Set the number of "
-        "keys per row in ⚙️ Settings to format the downloaded file")
 
     # Free-format text editable widget ---
     st.subheader(" ")
