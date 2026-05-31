@@ -388,7 +388,8 @@ def render_workspace():
     if st.session_state.selected_file:
         file_info = st.session_state.selected_file
         relative_path = file_info['relative']
-        blocks = file_info['blocks']
+        raw = file_info['blocks']
+        blocks = raw[0] if isinstance(raw, tuple) else raw
         
         render_editor(blocks, relative_path)
         st.info("Select a file from the dropdown above to view")
