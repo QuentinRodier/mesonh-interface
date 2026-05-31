@@ -454,7 +454,7 @@ with st.sidebar:
         uploaded_file = st.file_uploader("Upload PRE_PGD1.nam from domain 1", type=None, key="upload_d1")
         if uploaded_file is not None:
             content = uploaded_file.getvalue().decode("utf-8")
-            blocks = parser.parse_namelist(content)
+            blocks, _ = parser.parse_namelist(content)
             block = blocks.get('NAM_CONF_PROJ_GRID')
             if block is None:
                 st.error("Block `&NAM_CONF_PROJ_GRID` not found in file.")
@@ -507,7 +507,7 @@ with st.sidebar:
         uploaded_file = st.file_uploader(f"Upload Domain {next_domain} namelist", type=['nam', 'NAM', 'txt'], key=f"upload_d{next_domain}")
         if uploaded_file is not None:
             content = uploaded_file.getvalue().decode("utf-8")
-            blocks = parser.parse_namelist(content)
+            blocks, _ = parser.parse_namelist(content)
             block = blocks.get('NAM_INIFILE_CONF_PROJ')
             if block is None:
                 st.error("Block `&NAM_INIFILE_CONF_PROJ` not found in file.")
