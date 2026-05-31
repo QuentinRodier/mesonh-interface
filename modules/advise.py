@@ -539,6 +539,8 @@ def check_param_names(blocks, program_type):
 
         for param_name, entry in block.entries.items():
             base_param = entry.base_name
+            if entry.is_comment:
+                continue
             if base_param not in valid_param_names:
                 issues.append(f"Parameter '{param_name}' in block '{block_name}' not found in documentation")
 
@@ -557,7 +559,7 @@ def check_param_values(blocks):
 
     for block_name, block in blocks.items():
         for param_name, entry in block.entries.items():
-            if not param_name:
+            if not param_name or entry.is_comment:
                 continue
             # Use base_name (without array index) for first letter check
             check_name = entry.base_name if hasattr(entry, 'base_name') else param_name
@@ -700,6 +702,8 @@ def check_param_values_from_fortran(blocks, fortran_checks):
     issues = []
     for block_name, block in blocks.items():
         for param_name, entry in block.entries.items():
+            if entry.is_comment:
+                continue
             base_name = entry.base_name if hasattr(entry, 'base_name') else param_name
             if base_name not in fortran_checks:
                 continue
