@@ -4,10 +4,14 @@ A Streamlit-based web application for editing Meso-NH namelist files. This tool 
 
 ## Features
 
-- **Namelist Editor**: Edit single namelist files with an interactive UI
+- **Namelist Editor**: Edit single namelist files with an interactive UI, integrated documentation, and advice checks
 - **Workspace Mode**: Edit multiple namelist files in a directory
 - **Catalogue Explorer**: Browse and explore example namelists
+- **Horizontal Grids**: Configure horizontal grid parameters (NIMAX, NJMAX, projection) with interactive Leaflet map and multi-domain support
 - **Vertical Levels Configurator**: Configure NAM_VER_GRID parameters with visualization
+- **Initial Radiosoundings and Forcing**: Edit CSTN, RSOU, and forcing data for PRE_IDEA1.nam with profile plots and Hovmöller diagrams
+- **Quick Plots**: Visualize netCDF output files with per-variable plots, colormap selection, and per-trace color management
+- **Experiment Design**: Design complete Meso-NH experiments (ideal/realistic, multi-domain, multi-segment) with automatic architecture generation, namelist curation, and workflow advice
 - **Documentation Integration and Advises**: Direct access to parameter documentation from RST files and Meso-NH code
 
 ## Requirements
@@ -54,11 +58,16 @@ Launch the application:
 streamlit run Applications.py
 ```
 
-This will open the application in your web browser. From the home page, you can navigate to:
+This will open the application in your web browser. From the sidebar navigation you can access:
+- **Home**: Landing page with links to all tools
 - **Namelist Editor**: Edit a single namelist file
 - **Workspace**: Edit multiple namelists in a directory
 - **Catalogue Explorer**: Browse example namelists
+- **Horizontal Grids**: Configure horizontal grids with an interactive map
 - **Vertical Levels**: Configure vertical grid parameters
+- **Initial Radiosoundings and Forcing**: Edit radiosounding and forcing data
+- **Quick Plots**: Visualize netCDF output files
+- **Experiment Design**: Design complete Meso-NH experiments
 
 ## Configuration
 
@@ -79,19 +88,25 @@ mesonh-interface/
 ├── requirements.txt            # Dependencies
 ├── .env.example                # Template for environment variables
 ├── .env                        # Your local configuration (created by setup)
-├── Applications.py             # Main entry point
+├── Applications.py             # Main entry point (st.Page navigation hub)
+├── Home.py                     # Landing page
 ├── config.py                   # Configuration management
 ├── modules/
 │   ├── __init__.py
 │   ├── docs.py             # Documentation parsing
-│   ├── parser.py           # Namelist file parser
-│   └── advise.py           # Parameter advice/validation
-└── pages/
-    ├── __init__.py
-    ├── Namelist_Editor.py  # Single file editor
-    ├── Workspace.py        # Multi-file workspace
-    ├── Catalogue_Explorer.py # Browse examples
-    ├── Vertical_Levels.py  # Vertical grid configurator
-    └── Horizontal_Grids.py # Horizontal grids configurator
+│   ├── parser.py           # Namelist file parser (blocks + free-format)
+│   ├── advise.py           # Parameter advice/validation
+│   ├── utils.py            # Utility functions (clipboard, etc.)
+│   └── experiment.py       # Experiment design logic (steps, ingredients, curation)
+├── pages/
+│   ├── __init__.py
+│   ├── Namelist_Editor.py              # Single file editor
+│   ├── Workspace.py                    # Multi-file workspace
+│   ├── Catalogue_Explorer.py           # Browse examples
+│   ├── Horizontal_Grids.py             # Horizontal grid configurator
+│   ├── Vertical_Levels.py              # Vertical grid configurator
+│   ├── Initial_radiosoundings_forcing.py # Radiosounding & forcing data
+│   ├── Quick_Plots.py                  # netCDF visualization
+│   └── Experiment_Design.py            # Experiment workflow design
 └── (external repos referenced via env vars, not included)
 ```
