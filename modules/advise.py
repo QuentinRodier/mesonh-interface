@@ -534,7 +534,7 @@ def check_param_names(blocks, program_type):
         if not short_name:
             continue
 
-        valid_params = docs.get_block_params(short_name)
+        valid_params, _ = docs.get_block_params(short_name)
         valid_param_names = set(valid_params.keys())
 
         for param_name, entry in block.entries.items():

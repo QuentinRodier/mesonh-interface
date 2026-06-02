@@ -142,16 +142,21 @@ def extract_dimension_info(type_str):
 def get_block_params(block_name):
     rst_file = os.path.join(DOC_DIR, f"{block_name}.rst".lower())
     if not os.path.exists(rst_file):
-        return {}
+        return {}, {}
     params = {}
+    budget_allowed_values = {}
     with open(rst_file, 'r', encoding='utf-8') as f:
         content = f.read()
     lines = content.split('\n')
     in_table = False
+    tables_found = 0
     for line in lines:
         if '.. csv-table::' in line:
             in_table = True
+            tables_found += 1
             continue
+        if in_table and line.strip().startswith('.. include::'):
+            in_table = False
         if in_table and line.strip().startswith('"') and '"' in line:
             parts = parse_csv_line(line)
             if len(parts) >= 3:
@@ -159,8 +164,15 @@ def get_block_params(block_name):
                 name = clean_param_name(raw_name).replace("\"","")
                 ftype = parts[1].strip().upper()
                 default = parts[2].strip()
+                
+                # For the first table, we want to skip adding to allowed_values
+                # But we still want to add to params
+                if tables_found > 1:
+                    # Accumulate allowed values as a list
+                    val = parts[0].strip().replace('"', '').replace("'", "")
+                    budget_allowed_values.setdefault(name, []).append(val)
+
                 is_array = is_array_type(ftype)
-                # Extract dimension info
                 has_dim, dimensions, dim_pattern = extract_dimension_info(ftype)
                 if name and ftype:
                     if 'CHARACTER' in ftype:
@@ -210,12 +222,20 @@ def get_block_params(block_name):
                                 'value': 0.0,
                                 'is_array': is_array,
                                 'type': ftype,
-                                'dimensions': dimensions if has_dim else (1 if is_array else 0),
+                                'dimensions': dimensions if has_dim and not is_array else (1 if is_array else 0),
                                 'dim_pattern': dim_pattern
                             }
-        if in_table and line.strip().startswith('.. include::'):
-            in_table = False
-    return params
+    
+    # Re-key budget_allowed_values: subsequent CSV tables use the source-term name
+    # (e.g. "ALL") as the first column, but we need them keyed by the
+    # CHARACTER array parameter they describe (e.g. "CBULIST_RRC").
+    if budget_allowed_values:
+        all_terms = sorted(list(budget_allowed_values.keys()))
+        target_params = [n for n, info in params.items()
+                         if info.get('is_array') and 'CHARACTER' in info.get('type', '')]
+        budget_allowed_values = {pn: all_terms for pn in target_params}
+   
+    return params, budget_allowed_values
 
 
 def find_docs(block_name):

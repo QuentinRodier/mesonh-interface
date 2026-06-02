@@ -63,7 +63,7 @@ def paste_nam_ver_grid(block, block_name):
                     if k in st.session_state:
                         st.session_state[k] = new_val
 
-    block_params = docs.get_block_params(block_name)
+    block_params, _ = docs.get_block_params(block_name)
     for target_key, new_val in copied_data.items():
         if target_key not in matched_keys:
             param_def = block_params.get(target_key, {})
@@ -115,12 +115,18 @@ def render_namelist_view():
             if not block.entries and not st.session_state.show_empty:
                 continue
 
+            # Fetch block params once (includes allowed_values for NAM_BU_* blocks)
+            block_params, allowed_vals = {}, {}
+            try:
+                block_params, allowed_vals = docs.get_block_params(block_name)
+            except (ValueError, TypeError):
+                pass
+
             col_block, col_delete = st.columns([10, 1])
             with col_delete:
                 with st.popover("➕"):
-                        block_defaults = docs.get_block_params(block_name)
                         existing_params = set(block.entries.keys())
-                        available_params = {k: v for k, v in block_defaults.items() if k not in existing_params}
+                        available_params = {k: v for k, v in block_params.items() if k not in existing_params}
 
                         if available_params:
                             for param, default_val in available_params.items():
@@ -276,7 +282,13 @@ def render_namelist_view():
                                          new_val = st.number_input(" ", value=float(entry.value), key=f"{block_name}_{param_name}_{ver}", format=f"%.{decimals}f", label_visibility="collapsed")
                                      entry.value = new_val
                                  elif isinstance(entry.value, str):
-                                     new_val = st.text_input(" ", value=entry.value, key=f"{block_name}_{param_name}_{ver}", label_visibility="collapsed")
+                                     if entry.base_name in allowed_vals:
+                                         opts = allowed_vals[entry.base_name]
+                                         idx = (opts.index(str(entry.value)) + 1) if str(entry.value) in opts else 0
+                                         new_val = st.selectbox(" ", options=[""] + opts, index=idx,
+                                             key=f"{block_name}_{param_name}_{ver}", label_visibility="collapsed")
+                                     else:
+                                         new_val = st.text_input(" ", value=entry.value, key=f"{block_name}_{param_name}_{ver}", label_visibility="collapsed")
                                      entry.value = new_val
 
     with col_doc:
@@ -456,7 +468,7 @@ def render_upload():
                     for block_name, title in block_titles.items():
                         if title == selected_title:
                             defaults = docs.get_block_defaults(block_name)
-                            params = docs.get_block_params(block_name)
+                            params, _ = docs.get_block_params(block_name)
                             new_block = parser.NamelistBlock(name=title)
                             for param_name, default_value in defaults.items():
                                 is_array = params.get(param_name, {}).get('is_array', False) if isinstance(params.get(param_name), dict) else False
