@@ -125,6 +125,53 @@ def render_namelist_view():
             col_block, col_delete = st.columns([10, 1])
             with col_delete:
                 with st.popover("➕"):
+                    if block_name == "NAM_DIAG":
+                        custom_param_name = st.text_input("Parameter name", key=f"custom_name_{block_name}")
+                        expected_type = advise.get_expected_type(custom_param_name) if custom_param_name else None
+                        if expected_type:
+                            st.caption(f"Detected type: {expected_type.__name__}")
+
+                        is_array = st.checkbox("Is array", key=f"custom_array_{block_name}")
+                        dims = 1
+                        idx_values = []
+                        if is_array:
+                            dims = st.number_input("Dimensions", min_value=1, max_value=4, value=1, key=f"custom_dims_{block_name}")
+                            for d in range(int(dims)):
+                                val = st.text_input(f"Index dim {d+1}", value="1", key=f"custom_idx_{block_name}_{d}")
+                                if val and not val.isdigit():
+                                    st.error("Integers only")
+                                    val = "1"
+                                idx_values.append(val)
+
+                        default_value = ""
+                        if expected_type == int:
+                            default_value = 0
+                        elif expected_type == float:
+                            default_value = 0.0
+                        elif expected_type == bool:
+                            default_value = False
+
+                        if st.button("Add custom param", key=f"add_custom_{block_name}"):
+                            if custom_param_name:
+                                if is_array:
+                                    idx_str = ','.join(idx_values)
+                                    entry_name = f"{custom_param_name}({idx_str})"
+                                    array_index_str = f"({idx_str})"
+                                else:
+                                    entry_name = custom_param_name
+                                    idx_str = ""
+                                    array_index_str = ""
+
+                                block.entries[entry_name] = parser.NamelistEntry(
+                                    name=entry_name,
+                                    base_name=custom_param_name,
+                                    value=default_value,
+                                    raw_line=f"{entry_name} = {default_value}",
+                                    is_array=is_array,
+                                    array_index=array_index_str
+                                )
+                                st.rerun()
+                    else:
                         existing_params = set(block.entries.keys())
                         available_params = {k: v for k, v in block_params.items() if k not in existing_params}
 
@@ -146,7 +193,6 @@ def render_namelist_view():
                                                     val = st.text_input(" ", value="1", 
                                                                  key=f"idx_{block_name}_{param}_dim{i}",
                                                                  label_visibility="collapsed")
-                                                    # Validate: only integers allowed
                                                     if val and not val.isdigit():
                                                         st.error("Integers only")
                                                         val = "1"

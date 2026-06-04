@@ -217,98 +217,144 @@ def render_editor(blocks, relative_path):
                                     entry.value = new_val
                 with col_delete:
                     with st.popover("➕"):
-                        existing_params = set(block.entries.keys())
-                        available_params = {k: v for k, v in block_params.items() if k not in existing_params}
-                        
-                        if available_params:
-                            for param, default_val in available_params.items():
-                                is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
-                                dimensions = default_val.get('dimensions', 1) if isinstance(default_val, dict) else 1
+                        if block_name == "NAM_DIAG":
+                            custom_param_name = st.text_input("Parameter name", key=f"custom_name_{relative_path}_{block_name}")
+                            expected_type = advise.get_expected_type(custom_param_name) if custom_param_name else None
+                            if expected_type:
+                                st.caption(f"Detected type: {expected_type.__name__}")
 
-                                col_check, col_idx = st.columns([3, 1])
-                                with col_check:
-                                    st.checkbox(param, key=f"check_{relative_path}_{block_name}_{param}")
-                                if is_array:
-                                    with col_idx:
-                                        if dimensions > 1:
-                                            idx_cols = st.columns(dimensions)
-                                            idx_values = []
-                                            for i in range(dimensions):
-                                                with idx_cols[i]:
-                                                    val = st.text_input(" ", value="1", 
-                                                                 key=f"idx_{relative_path}_{block_name}_{param}_dim{i}",
-                                                                 label_visibility="collapsed")
-                                                    if val.isdigit():
-                                                        idx_values.append(val)
-                                                    else:
-                                                        st.error("Integers only")
-                                                        idx_values.append("1")
-                                            idx = ','.join(idx_values)
-                                            #st.session_state[f"idx_{relative_path}_{block_name}_{param}"] = idx
-                                        else:
-                                            idx = st.text_input(" ", value="1", 
-                                                                 key=f"idx_{relative_path}_{block_name}_{param}", 
-                                                                 label_visibility="collapsed")
-                                            if not idx.isdigit():
-                                                st.error("Integers only")
-                                                idx = "1"
-                                            #st.session_state[f"idx_{relative_path}_{block_name}_{param}"] = idx
+                            is_array = st.checkbox("Is array", key=f"custom_array_{relative_path}_{block_name}")
+                            dims = 1
+                            idx_values = []
+                            if is_array:
+                                dims = st.number_input("Dimensions", min_value=1, max_value=4, value=1, key=f"custom_dims_{relative_path}_{block_name}")
+                                for d in range(int(dims)):
+                                    val = st.text_input(f"Index dim {d+1}", value="1", key=f"custom_idx_{relative_path}_{block_name}_{d}")
+                                    if val and not val.isdigit():
+                                        st.error("Integers only")
+                                        val = "1"
+                                    idx_values.append(val)
 
-                            col_pbtn1, col_pbtn2 = st.columns(2)
-                            with col_pbtn1:
-                                if st.button("Add selected", key=f"add_{relative_path}_{block_name}"):
-                                    for param, default_val in available_params.items():
-                                        if st.session_state.get(f"check_{relative_path}_{block_name}_{param}"):
-                                            is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
-                                            if is_array:
-                                                dims = default_val.get('dimensions', 1)
-                                                if dims > 1:
-                                                    idx_values = []
-                                                    for i in range(dims):
-                                                        val = st.session_state.get(f"idx_{relative_path}_{block_name}_{param}_dim{i}", "1")
-                                                        if val and val.isdigit():
-                                                            idx_values.append(val)
-                                                        else:
-                                                            idx_values.append("1")
-                                                    idx = ','.join(idx_values)
-                                                else:
-                                                    idx = st.session_state.get(f"idx_{relative_path}_{block_name}_{param}", "1")
-                                                    if idx and not idx.isdigit():
-                                                        idx = "1"
-                                                entry_name = f"{param}({idx})"
-                                                base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
-                                            else:
-                                                entry_name = param
-                                                base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
-                                            block.entries[entry_name] = parser.NamelistEntry(
-                                                name=entry_name,
-                                                base_name=param,
-                                                value=base_value,
-                                                raw_line=f"{entry_name} = {base_value}",
-                                                is_array=is_array,
-                                                array_index=f"({idx})" if is_array else ""
-                                            )
-                                    save_file(relative_path, blocks)
-                                    st.rerun()
-                            with col_pbtn2:
-                                if st.button("Add All", key=f"addall_{relative_path}_{block_name}"):
-                                    for param, default_val in available_params.items():
-                                        is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
-                                        if is_array:
-                                            continue
-                                        base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
-                                        block.entries[param] = parser.NamelistEntry(
-                                            name=param,
-                                            base_name=param,
-                                            value=base_value,
-                                            raw_line=f"{param} = {base_value}",
-                                            is_array=False,
-                                            array_index=""
-                                        )
+                            default_value = ""
+                            if expected_type == int:
+                                default_value = 0
+                            elif expected_type == float:
+                                default_value = 0.0
+                            elif expected_type == bool:
+                                default_value = False
+
+                            if st.button("Add custom param", key=f"add_custom_{relative_path}_{block_name}"):
+                                if custom_param_name:
+                                    if is_array:
+                                        idx_str = ','.join(idx_values)
+                                        entry_name = f"{custom_param_name}({idx_str})"
+                                        array_index_str = f"({idx_str})"
+                                    else:
+                                        entry_name = custom_param_name
+                                        idx_str = ""
+                                        array_index_str = ""
+
+                                    block.entries[entry_name] = parser.NamelistEntry(
+                                        name=entry_name,
+                                        base_name=custom_param_name,
+                                        value=default_value,
+                                        raw_line=f"{entry_name} = {default_value}",
+                                        is_array=is_array,
+                                        array_index=array_index_str
+                                    )
                                     save_file(relative_path, blocks)
                                     st.rerun()
                         else:
-                            st.caption("No params to add")
+                            existing_params = set(block.entries.keys())
+                            available_params = {k: v for k, v in block_params.items() if k not in existing_params}
+                            
+                            if available_params:
+                                for param, default_val in available_params.items():
+                                    is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+                                    dimensions = default_val.get('dimensions', 1) if isinstance(default_val, dict) else 1
+
+                                    col_check, col_idx = st.columns([3, 1])
+                                    with col_check:
+                                        st.checkbox(param, key=f"check_{relative_path}_{block_name}_{param}")
+                                    if is_array:
+                                        with col_idx:
+                                            if dimensions > 1:
+                                                idx_cols = st.columns(dimensions)
+                                                idx_values = []
+                                                for i in range(dimensions):
+                                                    with idx_cols[i]:
+                                                        val = st.text_input(" ", value="1", 
+                                                                     key=f"idx_{relative_path}_{block_name}_{param}_dim{i}",
+                                                                     label_visibility="collapsed")
+                                                        if val.isdigit():
+                                                            idx_values.append(val)
+                                                        else:
+                                                            st.error("Integers only")
+                                                            idx_values.append("1")
+                                                idx = ','.join(idx_values)
+                                            else:
+                                                idx = st.text_input(" ", value="1", 
+                                                                     key=f"idx_{relative_path}_{block_name}_{param}", 
+                                                                     label_visibility="collapsed")
+                                                if not idx.isdigit():
+                                                    st.error("Integers only")
+                                                    idx = "1"
+
+                                col_pbtn1, col_pbtn2 = st.columns(2)
+                                with col_pbtn1:
+                                    if st.button("Add selected", key=f"add_{relative_path}_{block_name}"):
+                                        for param, default_val in available_params.items():
+                                            if st.session_state.get(f"check_{relative_path}_{block_name}_{param}"):
+                                                is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+                                                if is_array:
+                                                    dims = default_val.get('dimensions', 1)
+                                                    if dims > 1:
+                                                        idx_values = []
+                                                        for i in range(dims):
+                                                            val = st.session_state.get(f"idx_{relative_path}_{block_name}_{param}_dim{i}", "1")
+                                                            if val and val.isdigit():
+                                                                idx_values.append(val)
+                                                            else:
+                                                                idx_values.append("1")
+                                                        idx = ','.join(idx_values)
+                                                    else:
+                                                        idx = st.session_state.get(f"idx_{relative_path}_{block_name}_{param}", "1")
+                                                        if idx and not idx.isdigit():
+                                                            idx = "1"
+                                                    entry_name = f"{param}({idx})"
+                                                    base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
+                                                else:
+                                                    entry_name = param
+                                                    base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
+                                                block.entries[entry_name] = parser.NamelistEntry(
+                                                    name=entry_name,
+                                                    base_name=param,
+                                                    value=base_value,
+                                                    raw_line=f"{entry_name} = {base_value}",
+                                                    is_array=is_array,
+                                                    array_index=f"({idx})" if is_array else ""
+                                                )
+                                        save_file(relative_path, blocks)
+                                        st.rerun()
+                                with col_pbtn2:
+                                    if st.button("Add All", key=f"addall_{relative_path}_{block_name}"):
+                                        for param, default_val in available_params.items():
+                                            is_array = default_val.get('is_array', False) if isinstance(default_val, dict) else False
+                                            if is_array:
+                                                continue
+                                            base_value = default_val.get('value', default_val) if isinstance(default_val, dict) else default_val
+                                            block.entries[param] = parser.NamelistEntry(
+                                                name=param,
+                                                base_name=param,
+                                                value=base_value,
+                                                raw_line=f"{param} = {base_value}",
+                                                is_array=False,
+                                                array_index=""
+                                            )
+                                        save_file(relative_path, blocks)
+                                        st.rerun()
+                            else:
+                                st.caption("No params to add")
                     if block_name == "NAM_VER_GRID" or block_name == "NAM_CONF_PROJ_GRID" or block_name == "NAM_INIFILE_CONF_PROJ":
                         origin_page = "Horizontal Grids" if block_name == "NAM_CONF_PROJ_GRID" or block_name == "NAM_INIFILE_CONF_PROJ" else "Vertical Grids"
                         copied_data = utils.get_copied_params()

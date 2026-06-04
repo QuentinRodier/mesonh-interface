@@ -547,12 +547,33 @@ def check_param_names(blocks, program_type):
     return issues
 
 
+def get_expected_type(name):
+    """Determine expected Fortran type from the first letter of a variable name."""
+    if not name:
+        return None
+
+    first_letter = name[0].upper()
+    # Mapping derived from common FORTRAN variable naming conventions.
+    # I, J - Integer; C, H - Character (string); L, O - Logical; X - Real/Float
+    type_map = {
+        ('N', 'I', 'J'): int,
+        ('C', 'H', 'Y'): str,
+        ('L', 'O'): bool,
+        ('X',): float,
+    }
+    for letters, expected_t in type_map.items():
+        if first_letter in letters:
+            return expected_t
+    # Default fallback for unidentifiable types
+    return str
+
+
 def check_param_values(blocks):
     """Check that parameter values match expected types based on first letter."""
     issues = []
     type_map = {
         ('N', 'I', 'J'): int,
-        ('C', 'H'): str,
+        ('C', 'H', 'Y'): str,
         ('L', 'O'): bool,
         ('X',): float,
     }
