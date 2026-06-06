@@ -644,7 +644,9 @@ def render_workspace():
                         if st.button("Confirm", use_container_width=True, key=f"confirm_rename_{relative_path}"):
                             if new_name != rename_target:
                                 if new_name not in blocks:
-                                    blocks[new_name] = blocks.pop(rename_target)
+                                    block = blocks.pop(rename_target)
+                                    block.name = new_name
+                                    blocks[new_name] = block
                                     save_file(relative_path, blocks)
                                     st.rerun()
                                 else:

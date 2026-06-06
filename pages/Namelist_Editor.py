@@ -510,7 +510,7 @@ def render_upload():
                     selected_title = st.selectbox(" ", block_options, key="add_block_select")
                 with col_add2:
                     position = st.radio("Position", ["Top", "Bottom"], horizontal=True, key="add_block_position")
-                if selected_title and selected_title != "Add a block":
+                if selected_title and selected_title != "Add a namelist block":
                     for block_name, title in block_titles.items():
                         if title == selected_title:
                             defaults = docs.get_block_defaults(block_name)
@@ -544,7 +544,9 @@ def render_upload():
                 if st.button("Confirm", use_container_width=True):
                     if new_name != rename_target:
                         if new_name not in st.session_state.namelist_blocks:
-                            st.session_state.namelist_blocks[new_name] = st.session_state.namelist_blocks.pop(rename_target)
+                            block = st.session_state.namelist_blocks.pop(rename_target)
+                            block.name = new_name
+                            st.session_state.namelist_blocks[new_name] = block
                             st.rerun()
                         else:
                             st.error("Name already exists")
