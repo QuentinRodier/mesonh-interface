@@ -512,7 +512,7 @@ def check_block_names(blocks, program_type):
 
     available_blocks = docs.get_available_blocks(program_type)
     valid_titles = {docs.get_block_title(b) for b in available_blocks}
-
+    if program_type == 'diag': valid_titles.add('NAM_DIAG')
     for block_name in blocks.keys():
         if block_name not in valid_titles:
             issues.append(f"Block '{block_name}' not found in {program_type} documentation")
