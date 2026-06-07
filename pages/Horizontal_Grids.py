@@ -3,6 +3,9 @@ import folium
 from streamlit_folium import st_folium
 from folium.plugins import Draw
 import math
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import plotly.graph_objects as go
 from modules import utils, parser
 
 st.set_page_config(page_title="🌐 Horizontal Grids", layout="wide")
@@ -96,12 +99,131 @@ def delete_domain(domain_id):
                 added = True
     st.session_state.domains = [d for d in domains if d['id'] not in to_remove]
 
+# --- Cartesian grid helpers ---
+
+def make_cart_domain1():
+    return {
+        'id': 1,
+        'nimax': 400, 'njmax': 400,
+        'xdeltax': 1000.0, 'xdeltay': 1000.0,
+        'color': DOMAIN_COLORS[0], 'parent': None,
+        'x0': 0, 'y0': 0, 'w': None, 'h': None, 'opacity': 0.25,
+    }
+
+def make_cart_child(domain_id, parent_id, color=None):
+    return {
+        'id': domain_id, 'parent': parent_id,
+        'ixor': 100, 'iyor': 100, 'idxratio': 2, 'idyratio': 2,
+        'ixsize': 200, 'iysize': 200,
+        'color': color or DOMAIN_COLORS[(domain_id - 1) % len(DOMAIN_COLORS)],
+        'x0': 0, 'y0': 0, 'w': None, 'h': None, 'opacity': 0.75,
+    }
+
+def compute_cart_domain1(d):
+    d['w'] = d['nimax'] * d['xdeltax']
+    d['h'] = d['njmax'] * d['xdeltay']
+
+def compute_cart_child(domains, child):
+    parent = next(p for p in domains if p['id'] == child['parent'])
+    child['x0'] = parent['x0'] + child['ixor'] * parent['xdeltax']
+    child['y0'] = parent['y0'] + child['iyor'] * parent['xdeltay']
+    child['w'] = child['ixsize'] * parent['xdeltax']
+    child['h'] = child['iysize'] * parent['xdeltay']
+    child['xdeltax'] = parent['xdeltax'] / child['idxratio']
+    child['xdeltay'] = parent['xdeltay'] / child['idyratio']
+
+def delete_cart_domain(domain_id):
+    domains = st.session_state.cart_domains
+    to_remove = {domain_id}
+    added = True
+    while added:
+        added = False
+        for d in domains:
+            if d['parent'] in to_remove and d['id'] not in to_remove:
+                to_remove.add(d['id'])
+                added = True
+    st.session_state.cart_domains = [d for d in domains if d['id'] not in to_remove]
+
+
+def _render_cart_figure(cart_domains):
+    fig = go.Figure()
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(title="X (m)", scaleanchor="y", scaleratio=1,
+                   showgrid=True, gridcolor='lightgray', gridwidth=1,
+                   minor=dict(showgrid=True, gridcolor='lightgray', gridwidth=0.5, griddash='dot')),
+        yaxis=dict(title="Y (m)", showgrid=True, gridcolor='lightgray', gridwidth=1,
+                   minor=dict(showgrid=True, gridcolor='lightgray', gridwidth=0.5, griddash='dot')),
+        dragmode='pan',
+        showlegend=False,
+        margin=dict(l=20, r=20, t=20, b=20),
+    )
+
+    for d in cart_domains:
+        fig.add_shape(
+            type="rect",
+            x0=d['x0'], y0=d['y0'],
+            x1=d['x0'] + d['w'], y1=d['y0'] + d['h'],
+            line=dict(color=d['color'], width=2),
+            fillcolor=d['color'], opacity=d.get('opacity', 0.1),
+            editable=True,
+        )
+        fig.add_annotation(
+            x=d['x0'] + d['w'] / 2, y=d['y0'] + d['h'] / 2,
+            text=f"D{d['id']}",
+            showarrow=False,
+            font=dict(color=d['color'], size=14),
+        )
+        if d['parent'] is None:
+            info = f"{d['nimax']}×{d['njmax']} pts — Δx={d['xdeltax']:.0f}m  Δy={d['xdeltay']:.0f}m"
+        else:
+            parent = next(p for p in cart_domains if p['id'] == d['parent'])
+            dx = parent['xdeltax'] / d['idxratio']
+            dy = parent['xdeltay'] / d['idyratio']
+            ni = d['ixsize'] * d['idxratio']
+            nj = d['iysize'] * d['idyratio']
+            info = f"{ni}×{nj} pts — {dx:.0f}m × {dy:.0f}m"
+        fig.add_annotation(
+            x=d['x0'] + d['w'] / 2, y=d['y0'],
+            text=info,
+            showarrow=False,
+            font=dict(color=d['color'], size=10),
+            yshift=-12,
+        )
+
+    if cart_domains:
+        d1 = cart_domains[0]
+        mx = d1['w'] * 0.05
+        my = d1['h'] * 0.05
+        fig.update_xaxes(range=[-mx, d1['w'] + mx])
+        fig.update_yaxes(range=[-d1['h'] * 0.15, d1['h'] + my])
+
+    config = {
+        'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
+        'displaylogo': False,
+    }
+    return fig, config
 if 'domains' not in st.session_state:
     d1 = make_domain1()
     sw, ne = compute_domain1_bounds(d1['center_lat'], d1['center_lon'], d1['nimax'], d1['njmax'], d1['xdeltax'], d1['xdeltay'])
     d1['sw'] = sw
     d1['ne'] = ne
     st.session_state.domains = [d1]
+
+if 'cart_domains' not in st.session_state:
+    cd1 = make_cart_domain1()
+    compute_cart_domain1(cd1)
+    st.session_state.cart_domains = [cd1]
+
+for d in st.session_state.cart_domains:
+    if 'opacity' not in d:
+        d['opacity'] = 0.1
+    if d['parent'] is not None and ('xdeltax' not in d or 'xdeltay' not in d):
+        p = next((x for x in st.session_state.cart_domains if x['id'] == d['parent']), None)
+        if p is not None and 'xdeltax' in p:
+            d['xdeltax'] = p['xdeltax'] / d['idxratio']
+            d['xdeltay'] = p['xdeltay'] / d['idyratio']
 
 for key in ('map_center', 'map_zoom'):
     if key not in st.session_state:
@@ -115,6 +237,12 @@ if 'upload_counter' not in st.session_state:
     st.session_state.upload_counter = 1
 if 'uploaded_files' not in st.session_state:
     st.session_state.uploaded_files = {}
+if 'cart_auto_squared' not in st.session_state:
+    st.session_state.cart_auto_squared = True
+if 'cart_square_domain' not in st.session_state:
+    st.session_state.cart_square_domain = False
+if 'cart_auto_center' not in st.session_state:
+    st.session_state.cart_auto_center = True
 
 st.title("🌐 Horizontal Grids")
 
@@ -406,6 +534,231 @@ with tab1:
                 needs_rerun = True
                 break
 
+with tab2:
+    col_canvas, col_ctrl = st.columns([2, 1])
+
+    with col_canvas:
+        cart_domains = st.session_state.cart_domains
+        fig, config = _render_cart_figure(cart_domains)
+        st.plotly_chart(fig, key="cart_canvas", use_container_width=True, config=config)
+
+    with col_ctrl:
+        cart_domains = st.session_state.cart_domains
+        cd1 = cart_domains[0]
+
+        st.subheader("Domain 1")
+
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            new_color = st.color_picker("Border color", cd1['color'], key="cart_color_1")
+        with col_c2:
+            new_opacity = st.slider("Opacity", min_value=0.0, max_value=1.0, value=cd1['opacity'], step=0.05, key="cart_opacity_1")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            new_nimax = st.number_input("NIMAX", value=cd1['nimax'], min_value=1, step=1, key="cart_nimax",
+                                        help="NIMAX: number of physical points in east-west direction. Must only be composed of factors 2, 3, and 5.")
+            if not is_factor_235(new_nimax):
+                prev, next_ = nearest_factor_235(new_nimax)
+                st.warning(f"NIMAX must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
+            new_xdeltax = st.number_input("XDELTAX (m)", value=cd1['xdeltax'], min_value=0.00001, step=100.0, format="%.4f", key="cart_xdeltax",
+                                          help=r"XDELTAX (or Δx): mesh size along the east-west direction (in meters)")
+        with col_b:
+            new_njmax = st.number_input("NJMAX", value=cd1['njmax'], min_value=1, step=1, key="cart_njmax",
+                                        help="NJMAX: number of physical points in south-north direction. Must only be composed of factors 2, 3, and 5.")
+            if not is_factor_235(new_njmax):
+                prev, next_ = nearest_factor_235(new_njmax)
+                st.warning(f"NJMAX must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
+            new_xdeltay = st.number_input("XDELTAY (m)", value=cd1['xdeltay'], min_value=0.00001, step=100.0, format="%.4f", key="cart_xdeltay",
+                                          help=r"XDELTAY (or Δy): mesh size along the south-north direction (in meters)")
+
+        if st.button("📋 Copy parameters to clipboard", key="cart_copy_d1", use_container_width=True,
+                     help="Copy the above parameters to clipboard. Paste it in Namelist Editor or Workspace"):
+            params_to_copy = {
+                'NIMAX': new_nimax,
+                'NJMAX': new_njmax,
+                'XDELTAX': new_xdeltax,
+                'XDELTAY': new_xdeltay,
+            }
+            utils.save_copied_params(params_to_copy)
+            st.success("Parameters copied!")
+
+        if st.session_state.cart_auto_squared:
+            if new_xdeltax != cd1['xdeltax']:
+                new_xdeltay = new_xdeltax
+            elif new_xdeltay != cd1['xdeltay']:
+                new_xdeltax = new_xdeltay
+
+        if st.session_state.cart_square_domain:
+            if new_nimax != cd1['nimax']:
+                new_njmax = new_nimax
+            elif new_njmax != cd1['njmax']:
+                new_nimax = new_njmax
+
+        changed = (
+            new_nimax != cd1['nimax'] or new_njmax != cd1['njmax'] or
+            new_xdeltax != cd1['xdeltax'] or new_xdeltay != cd1['xdeltay'] or
+            new_color != cd1['color'] or new_opacity != cd1['opacity']
+        )
+        if changed:
+            cd1['nimax'] = new_nimax
+            cd1['njmax'] = new_njmax
+            cd1['xdeltax'] = new_xdeltax
+            cd1['xdeltay'] = new_xdeltay
+            cd1['color'] = new_color
+            cd1['opacity'] = new_opacity
+            compute_cart_domain1(cd1)
+            for d in cart_domains[1:]:
+                compute_cart_child(cart_domains, d)
+            needs_rerun = True
+
+        st.space(size="small")
+
+        if len(cart_domains) < MAX_DOMAINS:
+            if st.button("+ Add domain", key="cart_add_domain", use_container_width=True, type='secondary'):
+                new_id = max(p['id'] for p in cart_domains) + 1
+                d = make_cart_child(new_id, 1)
+                parent = cart_domains[0]
+                if st.session_state.cart_auto_center:
+                    d['ixor'] = max(0, (parent['nimax'] - d['ixsize']) // 2)
+                    d['iyor'] = max(0, (parent['njmax'] - d['iysize']) // 2)
+                compute_cart_child(cart_domains, d)
+                cart_domains.append(d)
+                st.rerun()
+        else:
+            st.info(f"Maximum {MAX_DOMAINS} domains reached.")
+
+    st.divider()
+
+    if len(cart_domains) > 1:
+        child_domains = cart_domains[1:]
+        child_before = {
+            d['id']: (d['x0'], d['y0'], d['w'], d['h'], d['color'], d['opacity'], d['parent'])
+            for d in child_domains
+        }
+
+        for row_start in range(0, len(child_domains), 3):
+            row_domains = child_domains[row_start:row_start + 3]
+            cols = st.columns(3)
+
+            for col_idx, d in enumerate(row_domains):
+                with cols[col_idx]:
+                    st.subheader(f"Domain {d['id']}")
+
+                    parent_options = {p['id'] for p in cart_domains if p['id'] < d['id']}
+                    first_parent = d['parent'] if d['parent'] in parent_options else min(parent_options)
+                    parent_id = st.selectbox(
+                        "Parent", options=sorted(parent_options),
+                        format_func=lambda x: f"Domain {x}",
+                        index=sorted(parent_options).index(first_parent),
+                        key=f"cart_parent_{d['id']}",
+                    )
+                    old_parent_id = d['parent']
+                    d['parent'] = parent_id
+                    if d['parent'] != old_parent_id:
+                        old_p = next(p for p in cart_domains if p['id'] == old_parent_id)
+                        new_p = next(p for p in cart_domains if p['id'] == d['parent'])
+                        d['ixor'] = max(0, round((old_p['x0'] + d['ixor'] * old_p['xdeltax'] - new_p['x0']) / new_p['xdeltax']))
+                        d['iyor'] = max(0, round((old_p['y0'] + d['iyor'] * old_p['xdeltay'] - new_p['y0']) / new_p['xdeltay']))
+                        d['ixsize'] = max(1, round(d['ixsize'] * old_p['xdeltax'] / new_p['xdeltax']))
+                        d['iysize'] = max(1, round(d['iysize'] * old_p['xdeltay'] / new_p['xdeltay']))
+                        st.session_state[f"cart_ixor_{d['id']}"] = d['ixor']
+                        st.session_state[f"cart_iyor_{d['id']}"] = d['iyor']
+                        st.session_state[f"cart_ixsize_{d['id']}"] = d['ixsize']
+                        st.session_state[f"cart_iysize_{d['id']}"] = d['iysize']
+                    col_c1, col_c2 = st.columns(2)
+                    with col_c1:
+                        d['color'] = st.color_picker("Border color", d['color'], key=f"cart_color_{d['id']}")
+                    with col_c2:
+                        d['opacity'] = st.slider("Opacity", min_value=0.0, max_value=1.0, value=d['opacity'], step=0.05, key=f"cart_opacity_{d['id']}")
+
+                    for ratio_key in (f"cart_idxratio_{d['id']}", f"cart_idyratio_{d['id']}"):
+                        if ratio_key not in st.session_state:
+                            st.session_state[ratio_key] = d['idxratio'] if 'idxratio' in ratio_key else d['idyratio']
+                    for size_key in (f"cart_ixsize_{d['id']}", f"cart_iysize_{d['id']}"):
+                        if size_key not in st.session_state:
+                            st.session_state[size_key] = d['ixsize'] if 'ixsize' in size_key else d['iysize']
+
+                    if st.session_state.cart_auto_squared:
+                        widget_idxratio = st.session_state.get(f"cart_idxratio_{d['id']}", d['idxratio'])
+                        widget_idyratio = st.session_state.get(f"cart_idyratio_{d['id']}", d['idyratio'])
+                        if widget_idxratio != d['idxratio']:
+                            st.session_state[f"cart_idyratio_{d['id']}"] = widget_idxratio
+                        elif widget_idyratio != d['idyratio']:
+                            st.session_state[f"cart_idxratio_{d['id']}"] = widget_idyratio
+
+                    if st.session_state.cart_square_domain:
+                        widget_ixsize = st.session_state.get(f"cart_ixsize_{d['id']}", d['ixsize'])
+                        widget_iysize = st.session_state.get(f"cart_iysize_{d['id']}", d['iysize'])
+                        if widget_ixsize != d['ixsize']:
+                            st.session_state[f"cart_iysize_{d['id']}"] = widget_ixsize
+                        elif widget_iysize != d['iysize']:
+                            st.session_state[f"cart_ixsize_{d['id']}"] = widget_iysize
+
+                    col_1, col_2 = st.columns(2)
+                    with col_1:
+                        d['ixor'] = st.number_input("IXOR", value=d['ixor'], min_value=0, step=1, key=f"cart_ixor_{d['id']}",
+                                                    help="IXOR: first point I index, according to the parent grid, left to and out of the new physical domain.")
+                        d['idxratio'] = st.number_input("IDXRATIO", min_value=1, step=1, key=f"cart_idxratio_{d['id']}",
+                                                       help="IDXRATIO: resolution factor in east-west direction between the parent grid and the new grid. Must only be factor of 2, 3 or 5")
+                        d['ixsize'] = st.number_input("IXSIZE", min_value=1, step=1, key=f"cart_ixsize_{d['id']}",
+                                                      help="IXSIZE: number of grid points in east-west direction, according to the parent grid, recovered by the new domain. Must only be factor of 2, 3 or 5")
+                        if not is_factor_235(d['ixsize']):
+                            prev, next_ = nearest_factor_235(d['ixsize'])
+                            st.warning(f"IXSIZE must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
+                    with col_2:
+                        d['iyor'] = st.number_input("IYOR", value=d['iyor'], min_value=0, step=1, key=f"cart_iyor_{d['id']}",
+                                                    help="IYOR: first point J index, according to the parent grid, under and out of the new physical domain.")
+                        d['idyratio'] = st.number_input("IDYRATIO", min_value=1, step=1, key=f"cart_idyratio_{d['id']}",
+                                                       help="IDYRATIO: resolution factor in south-north direction between the parent grid and the new grid. Must only be factor of 2, 3 or 5")
+                        d['iysize'] = st.number_input("IYSIZE", min_value=1, step=1, key=f"cart_iysize_{d['id']}",
+                                                      help="IYSIZE: number of grid points in south-north direction, according to the parent grid, recovered by the new domain. Must only be factor of 2, 3 or 5")
+                        if not is_factor_235(d['iysize']):
+                            prev, next_ = nearest_factor_235(d['iysize'])
+                            st.warning(f"IYSIZE must only be composed of factors 2, 3, and 5. Suggested values: {prev} or {next_}.")
+
+                    d['nimax'] = d['ixsize'] * d['idxratio']
+                    d['njmax'] = d['iysize'] * d['idyratio']
+                    parent = next(p for p in cart_domains if p['id'] == d['parent'])
+
+                    parent_nimax, parent_njmax = get_domain_dimensions(parent)
+
+                    if d['ixor'] + d['ixsize'] > parent_nimax or d['iyor'] + d['iysize'] > parent_njmax:
+                        st.error(f"Child domain {d['id']} exceeds parent domain {d['parent']} boundaries! "
+                                f"Check IXOR+IXSIZE ({d['ixor'] + d['ixsize']}) <= NIMAX ({parent_nimax}) "
+                                f"and IYOR+IYSIZE ({d['iyor'] + d['iysize']}) <= NJMAX ({parent_njmax}).")
+
+                    child_xdeltax = parent['xdeltax'] / d['idxratio']
+                    child_xdeltay = parent['xdeltay'] / d['idyratio']
+                    st.caption(f"NIMAX={d['nimax']}, NJMAX={d['njmax']}, "
+                            f"XDELTAX={child_xdeltax:.1f}m, XDELTAY={child_xdeltay:.1f}m")
+
+                    if st.button("📋 Copy parameters to clipboard", key=f"cart_copy_{d['id']}", use_container_width=True,
+                                 help="Copy the above parameters to clipboard. Paste it in Namelist Editor or Workspace"):
+                        params_to_copy = {
+                            'IXOR': d['ixor'],
+                            'IYOR': d['iyor'],
+                            'IXSIZE': d['ixsize'],
+                            'IYSIZE': d['iysize'],
+                            'IDXRATIO': d['idxratio'],
+                            'IDYRATIO': d['idyratio']
+                        }
+                        utils.save_copied_params(params_to_copy)
+                        st.success("Parameters copied!")
+
+                    if st.button(f"Delete Domain {d['id']}", key=f"cart_delete_{d['id']}", use_container_width=True, type='secondary'):
+                        delete_cart_domain(d['id'])
+                        st.rerun()
+
+                    if d['parent'] != old_parent_id:
+                        parent = next(p for p in cart_domains if p['id'] == d['parent'])
+                    compute_cart_child(cart_domains, d)
+
+        for d in child_domains:
+            cur = (d['x0'], d['y0'], d['w'], d['h'], d['color'], d['opacity'], d['parent'])
+            if child_before.get(d['id']) != cur:
+                needs_rerun = True
+                break
+
 with st.sidebar:
     st.session_state.auto_center = st.checkbox(
         "Center child domain",
@@ -426,6 +779,41 @@ with st.sidebar:
             label = f"D{d['id']} — Points: {d['nimax']}×{d['njmax']} — Resolution: {d['xdeltax']:.0f}m × {d['xdeltay']:.0f}m"
         else:
             parent = next(p for p in st.session_state.domains if p['id'] == d['parent'])
+            n = d['ixsize'] * d['idxratio']
+            m = d['iysize'] * d['idyratio']
+            dx = parent['xdeltax'] / d['idxratio']
+            dy = parent['xdeltay'] / d['idyratio']
+            label = f"D{d['id']} — {n}×{m} pts — {dx:.0f}m × {dy:.0f}m"
+        st.markdown(
+            f"<span style='display:inline-block;width:12px;height:12px;"
+            f"background:{d['color']};margin-right:6px;'></span> {label}",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+    st.markdown("**Cartesian options**")
+    st.session_state.cart_auto_center = st.checkbox(
+        "Center child domain",
+        value=st.session_state.get('cart_auto_center', True),
+        key="cart_auto_center_check",
+    )
+    st.session_state.cart_auto_squared = st.checkbox(
+        r"Square mesh $\Delta_x = \Delta_y$",
+        value=st.session_state.get('cart_auto_squared', True),
+        key="cart_auto_squared_check",
+    )
+    st.session_state.cart_square_domain = st.checkbox(
+        "Square domain",
+        value=st.session_state.get('cart_square_domain', False),
+        key="cart_square_domain_check",
+    )
+    st.divider()
+    st.markdown("**Cartesian legend**")
+    for d in st.session_state.cart_domains:
+        if d['parent'] is None:
+            label = f"D{d['id']} — Points: {d['nimax']}×{d['njmax']} — Resolution: {d['xdeltax']:.0f}m × {d['xdeltay']:.0f}m"
+        else:
+            parent = next(p for p in st.session_state.cart_domains if p['id'] == d['parent'])
             n = d['ixsize'] * d['idxratio']
             m = d['iysize'] * d['idyratio']
             dx = parent['xdeltax'] / d['idxratio']
