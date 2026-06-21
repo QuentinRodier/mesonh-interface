@@ -125,17 +125,17 @@ def load_nc_from_path(full_path, file_key, display_name=None):
                 counter += 1
             unique_key = f"{file_key}_{counter}"
         
-            st.session_state.datasets_dict[unique_key] = {
-                "ds": ds, 
-                "ds_dict": ds_dict,
-                "groups": groups,
-                "var_to_group": var_to_group,
-                "temp_path": full_path,
-                "original_name": display_name,
-                "rel_path": rel_path
-            }
-           
-            st.success(f"Loaded: {display_name}")
+        st.session_state.datasets_dict[unique_key] = {
+            "ds": ds, 
+            "ds_dict": ds_dict,
+            "groups": groups,
+            "var_to_group": var_to_group,
+            "temp_path": full_path,
+            "original_name": display_name,
+            "rel_path": rel_path
+        }
+       
+        st.success(f"Loaded: {display_name}")
     except Exception as e:
         st.error(f"Error loading {file_key}: {e}")
 
@@ -182,7 +182,8 @@ with st.sidebar:
     uploaded_files = st.file_uploader(
         "Import netCDF files", 
         type=['nc', 'netcdf'], 
-        accept_multiple_files=True
+        accept_multiple_files=True,
+        max_upload_size=2000
     )
 
     # File Processing Logic (Uploaded)
