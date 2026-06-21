@@ -258,9 +258,11 @@ def render_namelist_view():
                                     st.rerun()
                         else:
                             st.caption("No params to add")
-                if block_name == "NAM_VER_GRID" or block_name == "NAM_CONF_PROJ_GRID" or block_name == "NAM_INIFILE_CONF_PROJ":
+                if block_name == "NAM_VER_GRID" or block_name == "NAM_CONF_PROJ_GRID" or block_name == "NAM_INIFILE_CONF_PROJ" or \
+                block_name == "NAM_GRID2_SPA":
                     copied_data = utils.get_copied_params()
-                    origin_page = "Horizontal Grids" if block_name == "NAM_CONF_PROJ_GRID" or block_name == "NAM_INIFILE_CONF_PROJ" else "Vertical Grids"
+                    origin_page = "Horizontal Grids" if block_name == "NAM_CONF_PROJ_GRID" or \
+                        block_name == "NAM_INIFILE_CONF_PROJ" or block_name == "NAM_GRID2_SPA" else "Vertical Grids"
                     if copied_data:
                         st.button(
                             "📋", key=f"paste_{block_name}",
