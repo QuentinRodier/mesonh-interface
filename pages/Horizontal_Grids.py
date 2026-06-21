@@ -191,7 +191,6 @@ def _render_cart_figure(cart_domains):
             font=dict(color=d['color'], size=10),
             yshift=-12,
         )
-
     if cart_domains:
         d1 = cart_domains[0]
         mx = d1['w'] * 0.05
@@ -571,17 +570,6 @@ with tab2:
             new_xdeltay = st.number_input("XDELTAY (m)", value=cd1['xdeltay'], min_value=0.00001, step=100.0, format="%.4f", key="cart_xdeltay",
                                           help=r"XDELTAY (or Δy): mesh size along the south-north direction (in meters)")
 
-        if st.button("📋 Copy parameters to clipboard", key="cart_copy_d1", use_container_width=True,
-                     help="Copy the above parameters to clipboard. Paste it in Namelist Editor or Workspace"):
-            params_to_copy = {
-                'NIMAX': new_nimax,
-                'NJMAX': new_njmax,
-                'XDELTAX': new_xdeltax,
-                'XDELTAY': new_xdeltay,
-            }
-            utils.save_copied_params(params_to_copy)
-            st.success("Parameters copied!")
-
         if st.session_state.cart_auto_squared:
             if new_xdeltax != cd1['xdeltax']:
                 new_xdeltay = new_xdeltax
@@ -732,18 +720,19 @@ with tab2:
                     st.caption(f"NIMAX={d['nimax']}, NJMAX={d['njmax']}, "
                             f"XDELTAX={child_xdeltax:.1f}m, XDELTAY={child_xdeltay:.1f}m")
 
-                    if st.button("📋 Copy parameters to clipboard", key=f"cart_copy_{d['id']}", use_container_width=True,
-                                 help="Copy the above parameters to clipboard. Paste it in Namelist Editor or Workspace"):
-                        params_to_copy = {
-                            'IXOR': d['ixor'],
-                            'IYOR': d['iyor'],
-                            'IXSIZE': d['ixsize'],
-                            'IYSIZE': d['iysize'],
-                            'IDXRATIO': d['idxratio'],
-                            'IDYRATIO': d['idyratio']
-                        }
-                        utils.save_copied_params(params_to_copy)
-                        st.success("Parameters copied!")
+                    if d['id'] > 1: 
+                        if st.button("📋 Copy parameters to clipboard", key=f"cart_copy_{d['id']}", use_container_width=True,
+                                    help="Copy the above parameters to clipboard. Paste it in Namelist Editor or Workspace"):
+                            params_to_copy = {
+                                'IXOR': d['ixor'],
+                                'IYOR': d['iyor'],
+                                'IXSIZE': d['ixsize'],
+                                'IYSIZE': d['iysize'],
+                                'IDXRATIO': d['idxratio'],
+                                'IDYRATIO': d['idyratio']
+                            }
+                            utils.save_copied_params(params_to_copy)
+                            st.success("Parameters copied!")
 
                     if st.button(f"Delete Domain {d['id']}", key=f"cart_delete_{d['id']}", use_container_width=True, type='secondary'):
                         delete_cart_domain(d['id'])
@@ -760,6 +749,7 @@ with tab2:
                 break
 
 with st.sidebar:
+    st.markdown("**Conform projection**")
     st.session_state.auto_center = st.checkbox(
         "Center child domain",
         value=st.session_state.get('auto_center', True),
@@ -774,24 +764,26 @@ with st.sidebar:
     )
     st.divider()
     st.markdown("**Legend**")
-    for d in st.session_state.domains:
-        if d['id'] == 1:
-            label = f"D{d['id']} — Points: {d['nimax']}×{d['njmax']} — Resolution: {d['xdeltax']:.0f}m × {d['xdeltay']:.0f}m"
-        else:
-            parent = next(p for p in st.session_state.domains if p['id'] == d['parent'])
-            n = d['ixsize'] * d['idxratio']
-            m = d['iysize'] * d['idyratio']
-            dx = parent['xdeltax'] / d['idxratio']
-            dy = parent['xdeltay'] / d['idyratio']
-            label = f"D{d['id']} — {n}×{m} pts — {dx:.0f}m × {dy:.0f}m"
-        st.markdown(
-            f"<span style='display:inline-block;width:12px;height:12px;"
-            f"background:{d['color']};margin-right:6px;'></span> {label}",
-            unsafe_allow_html=True,
-        )
+    for mode_label, domains in [("Conform grid", st.session_state.domains), ("Cartesian grid", st.session_state.cart_domains)]:
+        st.markdown(f"<small><i>{mode_label}</i></small>", unsafe_allow_html=True)
+        for d in domains:
+            if d.get('parent') is None:
+                label = f"D{d['id']} — {d['nimax']}×{d['njmax']} pts — {d['xdeltax']:.0f}m × {d['xdeltay']:.0f}m"
+            else:
+                parent = next(p for p in domains if p['id'] == d['parent'])
+                n = d['ixsize'] * d['idxratio']
+                m = d['iysize'] * d['idyratio']
+                dx = parent['xdeltax'] / d['idxratio']
+                dy = parent['xdeltay'] / d['idyratio']
+                label = f"D{d['id']} — {n}×{m} pts — {dx:.0f}m × {dy:.0f}m"
+            st.markdown(
+                f"<span style='display:inline-block;width:12px;height:12px;"
+                f"background:{d['color']};margin-right:6px;'></span> {label}",
+                unsafe_allow_html=True,
+            )
 
     st.divider()
-    st.markdown("**Cartesian options**")
+    st.markdown("**Cartesian projection**")
     st.session_state.cart_auto_center = st.checkbox(
         "Center child domain",
         value=st.session_state.get('cart_auto_center', True),
@@ -807,27 +799,10 @@ with st.sidebar:
         value=st.session_state.get('cart_square_domain', False),
         key="cart_square_domain_check",
     )
-    st.divider()
-    st.markdown("**Cartesian legend**")
-    for d in st.session_state.cart_domains:
-        if d['parent'] is None:
-            label = f"D{d['id']} — Points: {d['nimax']}×{d['njmax']} — Resolution: {d['xdeltax']:.0f}m × {d['xdeltay']:.0f}m"
-        else:
-            parent = next(p for p in st.session_state.cart_domains if p['id'] == d['parent'])
-            n = d['ixsize'] * d['idxratio']
-            m = d['iysize'] * d['idyratio']
-            dx = parent['xdeltax'] / d['idxratio']
-            dy = parent['xdeltay'] / d['idyratio']
-            label = f"D{d['id']} — {n}×{m} pts — {dx:.0f}m × {dy:.0f}m"
-        st.markdown(
-            f"<span style='display:inline-block;width:12px;height:12px;"
-            f"background:{d['color']};margin-right:6px;'></span> {label}",
-            unsafe_allow_html=True,
-        )
 
     # --- Namelist upload section ---
     st.divider()
-    st.markdown("**Import from Namelist**")
+    st.markdown("**Import from Namelist (conform only)**")
 
     # Show all previously uploaded files
     for domain_id, filename in sorted(st.session_state.uploaded_files.items()):
