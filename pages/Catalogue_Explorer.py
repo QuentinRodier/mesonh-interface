@@ -322,77 +322,200 @@ def render_workspace():
     st.title("📚 Catalogue Explorer")
     
     if not st.session_state.workspace_files:
-        st.info("👈 Enter a workspace path and click 'Load Workspace' to start")
+        st.info("👈 Load the workspace catalogue to start")
         return
     
-    st.subheader("📄 Files")
+    current_tab = st.radio(
+        "", ["Catalogue", "🔎 Search"],
+        horizontal=True, key="_catalogue_tab", label_visibility="collapsed",
+    )
     
-    file_options_dict = {}
-    file_options = []
-    for file_name, file_list in st.session_state.workspace_files.items():
-        if len(file_list) == 1:
-            key = file_name
-            file_options.append(file_name)
-            file_options_dict[file_name] = file_name
-        else:
-            for f in file_list:
-                key = f"{file_name} ({f['relative']})"
-                file_options.append(key)
-                file_options_dict[key] = f['relative']
-    
-    st.session_state.file_options = file_options
-    st.session_state.file_options_dict = file_options_dict
-    
-    current_index = 0
-    key = st.session_state.get('selected_file_key', '')
-    if key and key in file_options:
-        try:
-            current_index = file_options.index(key)
-        except ValueError:
-            current_index = 0
-    
-    selected_index = st.session_state.get('file_select_main_index', current_index)
-    
-    if selected_index >= len(file_options):
-        selected_index = 0
-    
-    if "file_select_main" not in st.session_state:
-        st.session_state.file_select_main = file_options[selected_index]
+    if current_tab == "Catalogue":
+        st.subheader("📄 Files")
+        
+        file_options_dict = {}
+        file_options = []
+        for file_name, file_list in st.session_state.workspace_files.items():
+            if len(file_list) == 1:
+                key = file_name
+                file_options.append(file_name)
+                file_options_dict[file_name] = file_name
+            else:
+                for f in file_list:
+                    key = f"{file_name} ({f['relative']})"
+                    file_options.append(key)
+                    file_options_dict[key] = f['relative']
+        
+        st.session_state.file_options = file_options
+        st.session_state.file_options_dict = file_options_dict
+        
+        current_index = 0
+        key = st.session_state.get('selected_file_key', '')
+        if key and key in file_options:
+            try:
+                current_index = file_options.index(key)
+            except ValueError:
+                current_index = 0
+        
+        selected_index = st.session_state.get('file_select_main_index', current_index)
+        
+        if selected_index >= len(file_options):
+            selected_index = 0
+        
+        if "file_select_main" not in st.session_state:
+            st.session_state.file_select_main = file_options[selected_index]
 
-    selected = st.selectbox(
-        "Select file to explore. No modification allowed.",
-        file_options,
-        key="file_select_main"
-    )    
-    current_selected_index = file_options.index(selected) if selected in file_options else 0
-    if st.session_state.get('file_select_main_index') != current_selected_index:
-        st.session_state.file_select_main_index = current_selected_index
-        st.session_state.selected_file_key = selected
-        
-        rel_path = file_options_dict.get(selected, selected)
-        
-        file_info = None
-        for file_list in st.session_state.workspace_files.values():
-            for fi in file_list:
-                if fi['relative'] == rel_path:
-                    file_info = fi
+        selected = st.selectbox(
+            "Select file to explore. No modification allowed.",
+            file_options,
+            key="file_select_main"
+        )    
+        current_selected_index = file_options.index(selected) if selected in file_options else 0
+        if st.session_state.get('file_select_main_index') != current_selected_index:
+            st.session_state.file_select_main_index = current_selected_index
+            st.session_state.selected_file_key = selected
+            
+            rel_path = file_options_dict.get(selected, selected)
+            
+            file_info = None
+            for file_list in st.session_state.workspace_files.values():
+                for fi in file_list:
+                    if fi['relative'] == rel_path:
+                        file_info = fi
+                        break
+                if file_info:
                     break
+            
             if file_info:
-                break
+                st.session_state.selected_file = file_info
         
-        if file_info:
-            st.session_state.selected_file = file_info
-    
-    st.divider()
-    
-    if st.session_state.selected_file:
-        file_info = st.session_state.selected_file
-        relative_path = file_info['relative']
-        raw = file_info['blocks']
-        blocks = raw[0] if isinstance(raw, tuple) else raw
+        st.divider()
         
-        render_editor(blocks, relative_path)
-        st.info("Select a file from the dropdown above to view")
+        if st.session_state.selected_file:
+            file_info = st.session_state.selected_file
+            relative_path = file_info['relative']
+            raw = file_info['blocks']
+            blocks = raw[0] if isinstance(raw, tuple) else raw
+            
+            render_editor(blocks, relative_path)
+            st.info("Select a file from the dropdown above to view")
+
+    if current_tab == "🔎 Search":
+        
+        if not st.session_state.workspace_files:
+            st.info("Load a catalogue first using the sidebar.")
+        else:
+            search_type = st.radio(" ", ["Parameter", "Block", "Parameter + value"], key="search_type", horizontal=True)
+            
+            col_term, col_btn = st.columns([3, 1])
+            with col_term:
+                if search_type == "Parameter + value":
+                    sub1, sub2 = st.columns(2)
+                    with sub1:
+                        st.text_input("Parameter name", key="search_param_name", placeholder="e.g. CRAD", label_visibility="collapsed")
+                    with sub2:
+                        st.text_input("Parameter + value", key="search_param_value", placeholder="e.g. ECRAD", label_visibility="collapsed")
+                else:
+                    st.text_input("Search term", key="search_term", placeholder="e.g. NIMAX, ECRA, NAM_CONF...", label_visibility="collapsed")
+            with col_btn:
+                search_clicked = st.button("🔎 Search", type="primary", key="search_btn")
+            
+            st.text_input("Filter by filename (optional)", key="search_filename_filter", placeholder="e.g. PRE_IDEA1")
+            
+            st.divider()
+            
+            if search_clicked:
+                search_type_val = st.session_state.search_type
+                filename_filter_val = st.session_state.get("search_filename_filter", "").strip()
+                
+                if search_type_val == "Parameter + value":
+                    search_ok = st.session_state.get("search_param_name", "").strip() and st.session_state.get("search_param_value", "").strip()
+                else:
+                    search_ok = st.session_state.get("search_term", "").strip()
+                
+                if search_ok:
+                    if search_type_val == "Parameter + value":
+                        param_name_val = st.session_state.search_param_name.strip()
+                        param_value_val = st.session_state.search_param_value.strip()
+                    else:
+                        search_term_val = st.session_state.search_term.strip()
+                    
+                    results = []
+                    for basename, file_infos in st.session_state.workspace_files.items():
+                        for file_info in file_infos:
+                            if filename_filter_val and filename_filter_val.lower() not in file_info['relative'].lower():
+                                continue
+                            raw = file_info['blocks']
+                            blocks = raw[0] if isinstance(raw, tuple) else raw
+                            for block_name, block in blocks.items():
+                                if search_type_val == "Parameter":
+                                    for entry_name, entry in block.entries.items():
+                                        if search_term_val.lower() in entry.name.lower() or search_term_val.lower() in entry.base_name.lower():
+                                            if len(file_infos) == 1:
+                                                file_key = basename
+                                            else:
+                                                file_key = f"{basename} ({file_info['relative']})"
+                                            results.append({
+                                                'File': file_info['relative'],
+                                                'Block': f"&{block_name}",
+                                                'Parameter': entry.name,
+                                                'Value': entry.value,
+                                                '_file_info': file_info,
+                                                '_file_key': file_key,
+                                            })
+                                elif search_type_val == "Block":
+                                    if search_term_val.lower() in block_name.lower():
+                                        if len(file_infos) == 1:
+                                            file_key = basename
+                                        else:
+                                            file_key = f"{basename} ({file_info['relative']})"
+                                        results.append({
+                                            'File': file_info['relative'],
+                                            'Block': f"&{block_name}",
+                                            'Entries': len(block.entries),
+                                            '_file_info': file_info,
+                                            '_file_key': file_key,
+                                        })
+                                elif search_type_val == "Parameter + value":
+                                    for entry_name, entry in block.entries.items():
+                                        if (param_name_val.lower() in entry.name.lower() or param_name_val.lower() in entry.base_name.lower()) and param_value_val.lower() in str(entry.value).lower():
+                                            if len(file_infos) == 1:
+                                                file_key = basename
+                                            else:
+                                                file_key = f"{basename} ({file_info['relative']})"
+                                            results.append({
+                                                'File': file_info['relative'],
+                                                'Block': f"&{block_name}",
+                                                'Parameter': entry.name,
+                                                'Value': entry.value,
+                                                '_file_info': file_info,
+                                                '_file_key': file_key,
+                                            })
+                    
+                    if results:
+                        st.success(f"Found {len(results)} match(es)")
+                        for i, r in enumerate(results):
+                            cols = st.columns([5, 2, 2, 2])
+                            with cols[0]:
+                                st.write(r.get('File', ''))
+                            with cols[1]:
+                                st.write(r.get('Block', ''))
+                            with cols[2]:
+                                st.write(str(r.get('Parameter', r.get('Entries', ''))))
+                            with cols[3]:
+                                st.write(str(r.get('Value', '')))
+                    else:
+                        st.warning("No matches found")
+                else:
+                    if search_type_val == "Parameter + value":
+                        st.warning("Please enter both a parameter name and a value")
+                    else:
+                        st.warning("Please enter a search term")
+            else:
+                if st.session_state.get("search_type") == "Parameter + value":
+                    st.info("Enter a parameter name and value above, then click Search.")
+                else:
+                    st.info("Enter a search term above and click Search.")
 
 
 def main():
