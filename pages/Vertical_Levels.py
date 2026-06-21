@@ -55,17 +55,17 @@ def get_ref_data(ref_params):
 
 with st.sidebar:
     st.header('Set the vertical grid')
-    KMAX = st.number_input('NKMAX', value=90, min_value=3, max_value=1000)
+    KMAX = st.number_input('NKMAX', value=90, min_value=3, max_value=1000, help="Maximum number of vertical levels")
     st.session_state.kmax = KMAX
-    ZMAX = st.slider('ZZMAX_STRGRD (m)', 0, 15000, int(st.session_state.zmax), key='zmax_slider')
+    ZMAX = st.number_input('ZZMAX_STRGRD (m)', 0.0, 15000.0, float(st.session_state.zmax), key='zmax_slider', format="%.2f", help="Height above ground where the grid spacing starts to increase more rapidly")
     st.session_state.zmax = ZMAX
-    ZGRD = st.slider('ZDZGRD (m)', 0.0, 1000.0, float(st.session_state.zgrd), key='zgrd_slider')
+    ZGRD = st.number_input('ZDZGRD (m)', 0.0, 1000.0, float(st.session_state.zgrd), key='zgrd_slider', format="%.2f", help="Vertical grid spacing near the ground")
     st.session_state.zgrd = ZGRD
-    ZTOP = st.slider('ZDZTOP (m)', 0.0, 2500.0, float(st.session_state.ztop), key='ztop_slider')
+    ZTOP = st.number_input('ZDZTOP (m)', 0.0, 2500.0, float(st.session_state.ztop), key='ztop_slider', format="%.2f", help="Vertical grid spacing near the top of the grid")
     st.session_state.ztop = ZTOP
-    SGRD = st.slider('ZSTRGRD (%)', 0.0, 40.0, float(st.session_state.sgrd), key='sgrd_slider')
+    SGRD = st.number_input('ZSTRGRD (%)', 0.0, 40.0, float(st.session_state.sgrd), key='sgrd_slider', format="%.2f", help="Vertical grid spacing increase rate")
     st.session_state.sgrd = SGRD
-    STOP = st.slider('ZSTRTOP (%)', 0.0, 40.0, float(st.session_state.stop), key='stop_slider')
+    STOP = st.number_input('ZSTRTOP (%)', 0.0, 40.0, float(st.session_state.stop), key='stop_slider', format="%.2f", help="Vertical grid spacing increase rate above ZZMAX_STRGRD")
     st.session_state.stop = STOP
 
     current_params = {
