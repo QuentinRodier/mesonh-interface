@@ -23,11 +23,11 @@ with col2:
         st.switch_page("pages/Workspace.py")
 
 with col3:
-    st.subheader("📚 Catalogue Explorer")
-    st.write(f"Browse namelists in {EXAMPLES_DIR}")
+    st.subheader("⚖️ Compare Namelists")
+    st.write(f"Compare 2 namelists and highlight differences")
     
-    if st.button("Explore the Catalogue", use_container_width=True):
-        st.switch_page("pages/Catalogue_Explorer.py")
+    if st.button("Compare Namelists", use_container_width=True):
+        st.switch_page("pages/Compare_Namelist.py")
 
 st.space("medium") 
 
@@ -58,6 +58,13 @@ st.space("medium")
 
 col7, col8, col9 = st.columns([1, 1, 1])
 with col7:
+    st.subheader("📚 Catalogue Explorer")
+    st.write(f"Browse examples namelists and search tools in the catalogue")
+    
+    if st.button("Explore the Catalogue", use_container_width=True):
+        st.switch_page("pages/Catalogue_Explorer.py")
+
+with col8:
     st.subheader("📊 Quick Plots")
     st.write("Plots lines, contours, and vertical profiles from multiple NetCDF")
     
