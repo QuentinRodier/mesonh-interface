@@ -140,6 +140,79 @@ def load_nc_from_path(full_path, file_key, display_name=None):
         st.error(f"Error loading {file_key}: {e}")
 
 
+def compute_spectrum(data, axis_names, dx_coords=None):
+    """Compute energy spectrum along given axis names.
+    
+    Parameters
+    ----------
+    data : np.ndarray
+        1D/2D array (already sliced and averaged over non-selected dims)
+    axis_names : list of str
+        ['ni'] for 1D or ['ni', 'nj'] for 2D
+    dx_coords : dict or None
+        Mapping axis_name -> 1D coord array for wavelength computation
+    
+    Returns
+    -------
+    wavelengths : np.ndarray
+    energies : np.ndarray
+    """
+    if len(axis_names) == 1:
+        ax_idx = 0  # last axis after transpose
+        n = data.shape[ax_idx]
+        fft_vals = np.fft.rfft(data, axis=ax_idx)
+        energy = np.abs(fft_vals)**2
+        # Average over realizations (other dims)
+        other_axes = tuple(i for i in range(data.ndim) if i != ax_idx)
+        if other_axes:
+            # Average over remaining dimensions, then squeeze
+            energy = np.mean(energy, axis=other_axes)
+        energy = np.squeeze(energy)
+        dx = 1.0
+        if dx_coords and axis_names[0] in dx_coords:
+            dx = np.abs(np.diff(dx_coords[axis_names[0]])).mean()
+        freqs = np.fft.rfftfreq(n, d=dx)
+        pos = freqs > 0
+        wavelengths = 1.0 / freqs[pos]
+        return wavelengths, energy[pos]
+    
+    elif len(axis_names) == 2:
+        ny, nx = data.shape[-2], data.shape[-1]
+        fft2 = np.fft.rfft2(data)
+        energy2d = np.abs(fft2)**2
+        other_axes = tuple(i for i in range(data.ndim - 2))
+        if other_axes:
+            energy2d = np.mean(energy2d, axis=other_axes)
+        energy2d = np.squeeze(energy2d)
+        
+        dx = 1.0
+        dy = 1.0
+        if dx_coords and axis_names[1] in dx_coords:
+            dx = np.abs(np.diff(dx_coords[axis_names[1]])).mean()
+        if dx_coords and axis_names[0] in dx_coords:
+            dy = np.abs(np.diff(dx_coords[axis_names[0]])).mean()
+        
+        kx = np.fft.rfftfreq(nx, d=dx)
+        ky = np.fft.fftfreq(ny, d=dy)
+        kx_grid, ky_grid = np.meshgrid(kx, ky)
+        k_mag = np.sqrt(kx_grid**2 + ky_grid**2)
+        
+        # Bin energy by k_mag
+        k_max = k_mag.max()
+        n_bins = min(ny, nx) // 2
+        k_bins = np.linspace(0, k_max, n_bins + 1)
+        k_centers = 0.5 * (k_bins[1:] + k_bins[:-1])
+        energy_1d = np.zeros(n_bins)
+        for i in range(n_bins):
+            mask = (k_mag >= k_bins[i]) & (k_mag < k_bins[i + 1])
+            if mask.any():
+                energy_1d[i] = np.mean(energy2d[mask])
+        
+        pos = k_centers > 0
+        wavelengths = np.where(pos, 1.0 / k_centers, np.nan)
+        return wavelengths[pos], energy_1d[pos]
+
+
 def add_trace_to_panel_callback(filename, varname, new_pos):
     panel_options = {f"Panel {p['id']}": p['id'] for p in st.session_state.panels}
     panel_options["➕ Create New Panel"] = "new"
@@ -445,7 +518,7 @@ with col_right:
                         names_in_panel = [t[1] for t in panel['traces']]
                         names_str = ", ".join(names_in_panel)
                         title_suffix = f" - {names_str}" if names_in_panel else ""
-                        p_col1, p_col2, p_col3, p_col4, p_col5, p_col6, p_col7 = st.columns([0.30, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+                        p_col1, p_col2, p_col3, p_col4, p_col5, p_col6, p_col7, p_col8 = st.columns([0.15, 0.08, 0.08, 0.1, 0.07, 0.07, 0.15, 0.08])
                         p_col1.markdown(f"**Panel {panel['id']}{title_suffix}**")
                         if p_col2.button("🎨", key=f"gear_panel_{panel['id']}"):
                             panel['show_config'] = not panel['show_config']
@@ -462,7 +535,10 @@ with col_right:
                         if p_col6.button("Log", key=f"log_panel_{panel['id']}"):
                             st.session_state.log_scale = not st.session_state.log_scale
                             st.rerun()
-                        if p_col7.button("🗑️", key=f"del_panel_{panel['id']}"):
+                        if p_col7.button("Spectra", key=f"spectra_panel_{panel['id']}"):
+                            panel['show_spectra'] = not panel.get('show_spectra', False)
+                            st.rerun()
+                        if p_col8.button("🗑️", key=f"del_panel_{panel['id']}"):
                             delete_panel(panel['id'])
                             st.rerun()
 
@@ -634,7 +710,7 @@ with col_right:
                                                 sv_sc = sv_sc.isel({d: 0})
                                         if len(sv_sc.dims) == 1:
                                             n_scatter += 1
-                                if n_scatter >= 2:
+                            if n_scatter >= 2:
                                     panel['secondary_y'] = st.checkbox(
                                         "Secondary Y-axis (right)",
                                         value=panel.get('secondary_y', False),
@@ -642,7 +718,6 @@ with col_right:
                                     )
 
                         if panel.get('show_range', False):
-                            # Compute current data ranges from first trace for default values
                             ax_min = ax_max = ay_min = ay_max = None
                             if panel['traces']:
                                 try:
@@ -690,6 +765,99 @@ with col_right:
                                         panel['y_range_max'] = st.number_input("Y max", value=ay_max if ay_max is not None else 1.0, format="%.6f", key=f"yr_max_{panel['id']}")
                                 panel['y_range_active'] = use_y
 
+                        if panel.get('show_spectra', False) and panel['traces']:
+                            fn, vn, _ = panel['traces'][0]
+                            if fn in st.session_state.datasets_dict:
+                                fi = st.session_state.datasets_dict[fn]
+                                dd = fi.get("ds_dict", {"": fi["ds"]})
+                                vm = fi.get("var_to_group", {})
+                                gp, sn = (vm[vn]) if vn in vm else ("", vn)
+                                ds = dd[gp] if gp else fi["ds"]
+                                v = ds[sn]
+                                horiz_dims = [d for d in v.dims if 'ni' in d or 'nj' in d]
+                                vertical_dims = [d for d in v.dims if d not in horiz_dims]
+                                all_other_dims = [d for d in v.dims]
+                                if horiz_dims:
+                                    with st.expander(f"Spectra Config", expanded=False):
+                                        st.caption("Select axes for FFT:")
+                                        spec_axes = {}
+                                        for hd in horiz_dims:
+                                            checked = st.checkbox(hd, value=(len(horiz_dims)==1),
+                                                                  key=f"spec_ax_{panel['id']}_{hd}")
+                                            if checked:
+                                                spec_axes[hd] = True
+                                        vert_inputs = {}
+                                        for vd in vertical_dims:
+                                            vd_size = len(v.coords[vd])
+                                            vk = st.number_input(f"{vd} layer (0-{vd_size-1})", min_value=0,
+                                            max_value=vd_size-1, value=0,
+                                                                 key=f"spec_v_{panel['id']}_{vd}")
+                                            vert_inputs[vd] = vk
+
+                                        st.caption("Or average over remaining dims (default):")
+                                        avg_remaining = st.checkbox("Average over non-selected dims", value=True,
+                                                                     key=f"spec_avg_{panel['id']}")
+
+                                        if st.button("Compute & Add Panel", key=f"spec_comp_{panel['id']}"):
+                                            sv = v
+                                            dx_coords = {}
+                                            for d in all_other_dims:
+                                                if d in horiz_dims:
+                                                    dx_coords[d] = v.coords[d].values
+                                                elif d in vert_inputs:
+                                                    sv = sv.isel({d: vert_inputs[d]})
+                                                else:
+                                                    if avg_remaining:
+                                                        sv = sv.mean(dim=d)
+                                                    else:
+                                                        sv = sv.isel({d: 0})
+                                            data_vals = sv.values
+                                            if len(spec_axes) == 2:
+                                                import itertools
+                                                spec_order = [d for d in sv.dims if d in spec_axes]
+                                                other_order = [d for d in sv.dims if d not in spec_axes]
+                                                sv_t = sv.transpose(*other_order, *spec_order)
+                                                have_extra = len(sv_t.dims) > 2
+                                                if have_extra:
+                                                    for d_rem in other_order:
+                                                        sv_t = sv_t.mean(dim=d_rem)
+                                                data_vals = sv_t.values
+                                                wl, en = compute_spectrum(data_vals, spec_order, dx_coords)
+                                            elif len(spec_axes) == 1:
+                                                spec_ax_name = list(spec_axes.keys())[0]
+                                                spec_order = [d for d in sv.dims if d in spec_axes]
+                                                other_order = [d for d in sv.dims if d not in spec_axes]
+                                                sv_t = sv.transpose(*other_order, *spec_order)
+                                                have_extra = len(sv_t.dims) > 1
+                                                if have_extra:
+                                                    for d_rem in other_order:
+                                                        sv_t = sv_t.mean(dim=d_rem)
+                                                data_vals = sv_t.values
+                                                wl, en = compute_spectrum(data_vals, spec_order, dx_coords)
+                                            else:
+                                                wl, en = None, None
+
+                                            if wl is not None and len(wl) > 1:
+                                                spec_panel_id = st.session_state.next_panel_id
+                                                st.session_state.next_panel_id += 1
+                                                st.session_state.panels.append({
+                                                    "id": spec_panel_id,
+                                                    "spectrum_data": {
+                                                        "wavelengths": wl,
+                                                        "energies": en,
+                                                        "source_var": vn,
+                                                        "axes": list(spec_axes.keys()),
+                                                    },
+                                                    "traces": [],
+                                                    "show_config": False,
+                                                    "show_spectra": False,
+                                                })
+                                                panel['show_spectra'] = False
+                                                st.success(f"Spectrum panel {spec_panel_id} created")
+                                                st.rerun()
+                                else:
+                                    st.caption("Spectra computation is only possible with horizontal dimensions")
+
                         if st.session_state.sync_colormap:
                             colorscale = st.session_state.sync_colorscale
                             if st.session_state.sync_invert_cmap:
@@ -699,7 +867,24 @@ with col_right:
                             if panel.get("invert_cmap", False):
                                 colorscale = colorscale + "_r"
 
-                        if panel['traces']:
+                        if 'spectrum_data' in panel:
+                            sd = panel['spectrum_data']
+                            wl = sd['wavelengths']
+                            en = sd['energies']
+                            fig_spec = go.Figure()
+                            fig_spec.add_trace(go.Scatter(
+                                x=wl, y=en, mode='lines',
+                                name=f"Spectrum {sd['source_var']} {sd['axes']}"
+                            ))
+                            fig_spec.update_xaxes(title_text="Wavelength (m)", type="log", autorange="reversed")
+                            fig_spec.update_yaxes(title_text="Energy", type="log")
+                            fig_spec.update_layout(
+                                height=st.session_state.plots_layout_height,
+                                margin=dict(l=10, r=10, t=30, b=10),
+                                showlegend=True
+                            )
+                            st.plotly_chart(fig_spec, use_container_width=True)
+                        elif panel['traces']:
                             fig = go.Figure()
                             has_data = False
                             first_trace_info = None
