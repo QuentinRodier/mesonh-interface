@@ -1,3 +1,4 @@
+import cloud_init
 import streamlit as st
 from config import EXAMPLES_DIR
 

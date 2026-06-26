@@ -1,3 +1,4 @@
+import cloud_init
 import streamlit as st
 
 st.set_page_config(page_title="Meso-NH Tools", layout="wide")
