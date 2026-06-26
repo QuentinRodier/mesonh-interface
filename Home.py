@@ -4,7 +4,7 @@ from config import EXAMPLES_DIR
 
 st.set_page_config(page_title="Meso-NH Tools ", layout="wide")
 
-st.title("🛠️ Meso-NH Tools App")
+st.title("Meso-NH Tools App")
 st.divider()
 
 col1, col2, col3 = st.columns([1, 1, 1])
@@ -49,10 +49,10 @@ with col5:
         st.switch_page("pages/Vertical_Levels.py")
 
 with col6:
-    st.subheader("🎈Initial Radiosoundings and Forcing")
-    st.write("Configure and plots free-format data from PRE_IDEA1.nam")
+    st.subheader("🎈Initial Profile and Forcing")
+    st.write("Configure and plots free-format data of PRE_IDEA1.nam")
     
-    if st.button("Configure & Plot RSOU and FRC data", use_container_width=True):
+    if st.button("Configure free-format data", use_container_width=True):
         st.switch_page("pages/Initial_radiosoundings_forcing.py")
 
 st.space("medium") 
@@ -60,14 +60,14 @@ st.space("medium")
 col7, col8, col9 = st.columns([1, 1, 1])
 with col7:
     st.subheader("📚 Catalogue Explorer")
-    st.write(f"Browse examples namelists and search tools in the catalogue")
+    st.write(f"Browse examples namelists and search tools")
     
     if st.button("Explore the Catalogue", use_container_width=True):
         st.switch_page("pages/Catalogue_Explorer.py")
 
 with col8:
     st.subheader("📊 Quick Plots")
-    st.write("Plots lines, contours, and vertical profiles from multiple NetCDF")
+    st.write("Lines, contours, and vertical profiles from multiple NetCDF")
     
     if st.button("Plots", use_container_width=True):
         st.switch_page("pages/Quick_Plots.py")
