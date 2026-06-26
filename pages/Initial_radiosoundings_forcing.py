@@ -199,6 +199,7 @@ with st.sidebar:
             try:
                 data = parser.parse_free_format(raw.decode("utf-8"))
                 rt = data.get("radiosounding_type") or "CSTN"
+                data["radiosounding_type"] = rt
                 data["radiosounding_cstn"] = None
                 data["radiosounding_rsou"] = None
                 if data.get("radiosounding"):
@@ -228,7 +229,7 @@ data = st.session_state.free_format_data
 tab1, tab2 = st.tabs(["Initial Radiosounding", "Idealized Forcings"])
 
 with tab1:
-    rt = st.radio("Type", ["CSTN", "RSOU"], index=0 if data["radiosounding_type"] == "CSTN" else 1,
+    rt = st.radio("Type", ["CSTN", "RSOU"], index=0 if data.get("radiosounding_type", "CSTN") == "CSTN" else 1,
                   horizontal=True, key="radio_type")
     if rt != data.get("radiosounding_type"):
         old_type = data.get("radiosounding_type")
