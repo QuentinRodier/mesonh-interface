@@ -256,7 +256,7 @@ with st.sidebar:
         "Import netCDF files", 
         type=['nc', 'netcdf'], 
         accept_multiple_files=True,
-        max_upload_size=2000
+        max_upload_size=102400
     )
 
     # File Processing Logic (Uploaded)
