@@ -29,6 +29,8 @@ if 'workspace_path' not in st.session_state:
     st.session_state.workspace_path = ""
 if 'workspace_nc_files' not in st.session_state:
     st.session_state.workspace_nc_files = {}
+if 'local_nc_paths' not in st.session_state:
+    st.session_state.local_nc_paths = set()
 if 'var_layout_weight' not in st.session_state:
     st.session_state.var_layout_weight = 1
 if 'var_layout_height' not in st.session_state:
@@ -283,7 +285,7 @@ with st.sidebar:
                     st.error(f"Error loading {uploaded_file.name}: {e}")
 
         # Cleanup deleted files
-        files_to_remove = [f for f in st.session_state.datasets_dict if f not in current_uploaded_names and f not in st.session_state.workspace_nc_files]
+        files_to_remove = [f for f in st.session_state.datasets_dict if f not in current_uploaded_names and f not in st.session_state.workspace_nc_files and f not in st.session_state.local_nc_paths]
         for f in files_to_remove:
             path = st.session_state.datasets_dict[f]["temp_path"]
             if os.path.exists(path): os.unlink(path)
@@ -329,6 +331,17 @@ with st.sidebar:
 
         with st.expander("📁 Workspace Tree", expanded=True):
             render_tree(tree)
+
+    st.text_input("or enter a single file path", key="local_nc_path",
+                  placeholder="C:\\path\\to\\file.nc")
+    if st.button("📂 Load File", key="load_local_nc"):
+        fp = st.session_state.local_nc_path
+        if fp and os.path.isfile(fp):
+            load_nc_from_path(fp, fp, display_name=os.path.basename(fp))
+            st.session_state.local_nc_paths.add(fp)
+            st.rerun()
+        else:
+            st.error("File not found")
 
     st.divider()
     st.header("Plots layout")
