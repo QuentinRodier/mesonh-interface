@@ -1,7 +1,7 @@
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import Draw
+from folium.plugins import Draw, MousePosition
 import math
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -297,6 +297,7 @@ with tab1:
             edit_options={'edit': True, 'remove': False},
         )
         draw.add_to(m)
+        MousePosition().add_to(m)
         output = st_folium(m, height=600, width='100%', key='grid_map')
 
         if output and output.get('center'):
