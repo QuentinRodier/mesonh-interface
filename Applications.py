@@ -13,5 +13,6 @@ pg = st.navigation([
     st.Page("pages/Horizontal_Grids.py", title="Horizontal Grids", icon="🌐"),
     st.Page("pages/Initial_radiosoundings_forcing.py", title="Initial Profile and Forcing", icon="🎈"),
     st.Page("pages/Quick_Plots.py", title="Quick Plots", icon="📊"),
+    st.Page("pages/ChatBot.py", title="Chat Bot", icon="🤖"),
 ])
 pg.run()

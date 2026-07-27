@@ -8,3 +8,4 @@ xarray==2026.4.0
 matplotlib==3.10.9
 netcdf4==1.7.4
 dotenv==0.9.9
+requests==2.32.3
