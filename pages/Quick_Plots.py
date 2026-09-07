@@ -943,8 +943,12 @@ with col_right:
                                         trace_y_labels.append(y_label)
 
                                         if len(dims) == 1:
+                                            if file_info['ds'][dims[0]].attrs['axis'] == 'T':
+                                                x_values = file_info['ds'][dims[0]].values
+                                            else:
+                                                x_values = sliced.coords[dims[0]].values
                                             sc_kw = {
-                                                "x": sliced.coords[dims[0]].values,
+                                                "x": x_values,
                                                 "y": sliced.values,
                                                 "mode": 'lines',
                                                 "name": legend_name,
